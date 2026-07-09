@@ -1,4 +1,4 @@
-﻿import { createClient } from "https://esm.sh/@supabase/supabase-js@2.46.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.46.1";
 
 type AnalyzeRequest = {
   recordingId?: string;
@@ -10,6 +10,8 @@ type RecordingRow = {
   language: string | null;
   audio_path: string | null;
 };
+
+type UserRole = "FREE" | "PREMIUM" | "TESTER" | "ADMIN";
 
 type CorrectionResult = {
   transcript: string;
@@ -71,6 +73,14 @@ Deno.serve(async (request) => {
     } = await supabase.auth.getUser();
     if (userError || !user) {
       return json({ error: "Invalid user session" }, 401);
+    }
+
+    const roleResult = await loadUserRole(supabase, user.id);
+    if (roleResult.error) {
+      return json({ error: roleResult.error }, 500);
+    }
+    if (!canUsePremiumFeature(roleResult.role)) {
+      return json({ error: "AI correction requires PREMIUM, TESTER, or ADMIN role", role: roleResult.role }, 403);
     }
 
     const { data: recordingData, error: recordingError } = await supabase
@@ -550,6 +560,37 @@ function adviceFor(word: string, language: string): WordAdvice {
     alternatives: [],
     advice: `${word} がよく出ています。次回は前後に形容詞や理由を1つ足して、より具体的に話してみましょう。`,
   };
+}
+
+async function loadUserRole(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<{ role: UserRole; error?: string }> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) {
+    return { role: "FREE", error: error.message };
+  }
+  return { role: parseUserRole(isRecord(data) ? data.role : null) };
+}
+
+function parseUserRole(value: unknown): UserRole {
+  const normalized = typeof value === "string" ? value.trim().toUpperCase() : "FREE";
+  if (["PREMIUM", "TESTER", "ADMIN"].includes(normalized)) {
+    return normalized as UserRole;
+  }
+  return "FREE";
+}
+
+function canUsePremiumFeature(role: UserRole): boolean {
+  return ["PREMIUM", "TESTER", "ADMIN"].includes(role);
+}
+
+function isAdmin(role: UserRole): boolean {
+  return role === "ADMIN";
 }
 
 function json(payload: unknown, status = 200) {

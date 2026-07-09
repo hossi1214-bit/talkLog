@@ -71,6 +71,8 @@ class _SettingsPageState extends State<SettingsPage> {
           _AccountAuthCard(
             statusText: _cloudStatusText,
             email: _authSessionService.email,
+            roleLabel: _authSessionService.roleLabel,
+            canUsePremiumFeature: _authSessionService.canUsePremiumFeature,
             isConfigured: _authSessionService.isConfigured,
             isLoading: _authSessionService.isLoading,
             isAnonymous: _authSessionService.isAnonymous,
@@ -315,6 +317,15 @@ class _SettingsPageState extends State<SettingsPage> {
             : _authSessionService.errorMessage ?? '未ログインです。',
       ),
     );
+    items.add(
+      _DiagnosticItem(
+        label: 'アカウント権限',
+        isOk: _authSessionService.isEmailSignedIn,
+        message: _authSessionService.isEmailSignedIn
+            ? ' / '
+            : 'ログイン後にprofiles.roleを取得します。',
+      ),
+    );
 
     final client = SupabaseService.client;
     if (client != null && _authSessionService.isEmailSignedIn) {
@@ -410,6 +421,8 @@ class _AccountAuthCard extends StatefulWidget {
   const _AccountAuthCard({
     required this.statusText,
     required this.email,
+    required this.roleLabel,
+    required this.canUsePremiumFeature,
     required this.isConfigured,
     required this.isLoading,
     required this.isAnonymous,
@@ -422,6 +435,8 @@ class _AccountAuthCard extends StatefulWidget {
 
   final String statusText;
   final String? email;
+  final String roleLabel;
+  final bool canUsePremiumFeature;
   final bool isConfigured;
   final bool isLoading;
   final bool isAnonymous;
@@ -478,6 +493,16 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
               const SizedBox(height: 4),
               Text(widget.email!, style: theme.textTheme.bodySmall),
             ],
+            const SizedBox(height: 8),
+            Chip(
+              avatar: Icon(
+                widget.canUsePremiumFeature
+                    ? Icons.workspace_premium_outlined
+                    : Icons.lock_outline,
+                size: 18,
+              ),
+              label: Text('権限: '),
+            ),
             const SizedBox(height: 12),
             if (isEmailLoggedIn) ...[
               DecoratedBox(

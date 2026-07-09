@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../../core/services/auth_session_service.dart';
 import '../correction/correction_result_page.dart';
 import '../correction/repositories/correction_repository.dart';
 import '../recording/data/recording_store.dart';
@@ -22,6 +23,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
   final _player = AudioPlayer();
   final _recordingRepository = SupabaseRecordingRepository();
   final _correctionRepository = CorrectionRepository();
+  final _authSessionService = AuthSessionService.instance;
   bool _isPlaying = false;
   bool _isDeleting = false;
   late Future<_RecordingCloudStatus> _statusFuture;
@@ -145,6 +147,11 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
   }
 
   void _openCorrectionResult() {
+    if (!_authSessionService.canUsePremiumFeature) {
+      _showPremiumRequiredDialog();
+      return;
+    }
+
     Navigator.of(context)
         .push(
           MaterialPageRoute(
@@ -152,6 +159,26 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
           ),
         )
         .then((_) => _reloadStatus());
+  }
+
+  Future<void> _showPremiumRequiredDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('有料機能です'),
+          content: const Text(
+            'AI添削はPREMIUM、TESTER、ADMINアカウントで利用できます。現在は無料プランのため、プラン変更後にご利用ください。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _togglePlayback() async {

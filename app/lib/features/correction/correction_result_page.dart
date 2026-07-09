@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/services/auth_session_service.dart';
 import '../recording/models/record_entry.dart';
 import '../vocabulary/repositories/vocabulary_repository.dart';
 import 'models/ai_correction_result.dart';
@@ -17,6 +18,7 @@ class CorrectionResultPage extends StatefulWidget {
 }
 
 class _CorrectionResultPageState extends State<CorrectionResultPage> {
+  final _authSessionService = AuthSessionService.instance;
   final _dummyCorrectionService = const DummyCorrectionService();
   final _edgeCorrectionService = EdgeFunctionCorrectionService();
   final _correctionRepository = CorrectionRepository();
@@ -117,6 +119,10 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_authSessionService.canUsePremiumFeature) {
+      return const _PremiumRequiredScaffold();
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI添削'),
@@ -215,6 +221,46 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
       return message;
     }
     return '${message.substring(0, 160)}...';
+  }
+}
+
+class _PremiumRequiredScaffold extends StatelessWidget {
+  const _PremiumRequiredScaffold();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('AI添削')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.workspace_premium_outlined,
+                size: 52,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(height: 16),
+              Text('有料機能です', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              const Text(
+                'AI添削はPREMIUM、TESTER、ADMINアカウントで利用できます。',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('戻る'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

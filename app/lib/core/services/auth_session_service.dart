@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/user_role.dart';
 import 'supabase_service.dart';
 
 class AuthSessionService extends ChangeNotifier {
@@ -14,12 +15,18 @@ class AuthSessionService extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   String? _message;
+  UserRole _role = UserRole.free;
   StreamSubscription<AuthState>? _authStateSubscription;
 
   bool get isConfigured => SupabaseService.isConfigured;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get message => _message;
+  UserRole get role => _role;
+  String get roleValue => _role.value;
+  String get roleLabel => _role.label;
+  bool get canUsePremiumFeature => _role.canUsePremiumFeature;
+  bool get isAdmin => _role.isAdmin;
 
   SupabaseClient? get _client => SupabaseService.client;
   User? get currentUser => _client?.auth.currentUser;
@@ -63,6 +70,7 @@ class AuthSessionService extends ChangeNotifier {
     if (!SupabaseService.isConfigured) {
       _errorMessage = null;
       _message = null;
+      _role = UserRole.free;
       notifyListeners();
       return;
     }
@@ -77,12 +85,27 @@ class AuthSessionService extends ChangeNotifier {
     _errorMessage = null;
     if (client.auth.currentUser?.isAnonymous ?? false) {
       await client.auth.signOut();
+      _role = UserRole.free;
     }
     notifyListeners();
 
     if (isEmailSignedIn) {
       await _tryEnsureProfile(client);
+    } else {
+      _role = UserRole.free;
+      notifyListeners();
     }
+  }
+
+  Future<void> refreshUserRole() async {
+    final client = _client;
+    if (client == null || !isEmailSignedIn) {
+      _role = UserRole.free;
+      notifyListeners();
+      return;
+    }
+    await _loadProfileRole(client);
+    notifyListeners();
   }
 
   Future<void> registerEmailAccount({
@@ -145,6 +168,7 @@ class AuthSessionService extends ChangeNotifier {
 
     try {
       await client.auth.signOut();
+      _role = UserRole.free;
       _message = 'ログアウトしました。';
     } catch (error) {
       _errorMessage = 'ログアウトに失敗しました: ${_friendlyError(error)}';
@@ -199,6 +223,8 @@ class AuthSessionService extends ChangeNotifier {
       _errorMessage = null;
       if (event.session != null && event.session!.user.isAnonymous == false) {
         _message = '$providerLabelでログインしました。';
+      } else {
+        _role = UserRole.free;
       }
       notifyListeners();
       unawaited(_tryEnsureProfile(client));
@@ -208,14 +234,18 @@ class AuthSessionService extends ChangeNotifier {
   Future<void> _tryEnsureProfile(SupabaseClient client) async {
     try {
       await _ensureProfile(client);
+      await _loadProfileRole(client);
     } catch (_) {
       // ログイン自体は成功しているため、プロフィール初期同期の失敗は同期時に表示する。
+    } finally {
+      notifyListeners();
     }
   }
 
   Future<void> _ensureProfile(SupabaseClient client) async {
     final user = client.auth.currentUser;
     if (user == null || user.isAnonymous) {
+      _role = UserRole.free;
       return;
     }
 
@@ -230,6 +260,21 @@ class AuthSessionService extends ChangeNotifier {
       'user_id': user.id,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     }, onConflict: 'user_id');
+  }
+
+  Future<void> _loadProfileRole(SupabaseClient client) async {
+    final user = client.auth.currentUser;
+    if (user == null || user.isAnonymous) {
+      _role = UserRole.free;
+      return;
+    }
+
+    final row = await client
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+    _role = UserRole.fromDbValue(row?['role']);
   }
 
   String? _validateEmailPassword(String email, String password) {

@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/services/auth_session_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../recording/models/record_entry.dart';
 import '../models/ai_correction_result.dart';
@@ -16,6 +17,11 @@ class EdgeFunctionCorrectionService {
     final client = _client;
     if (client == null || client.auth.currentUser == null) {
       throw const EdgeCorrectionUnavailableException('Supabaseにログインしていません。');
+    }
+    if (!AuthSessionService.instance.canUsePremiumFeature) {
+      throw const EdgeCorrectionUnavailableException(
+        'AI添削は有料機能です。PREMIUM、TESTER、ADMINアカウントで利用できます。',
+      );
     }
 
     final response = await client.functions.invoke(

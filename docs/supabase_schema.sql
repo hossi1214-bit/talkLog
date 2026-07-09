@@ -8,6 +8,7 @@ create table if not exists public.profiles (
   email text,
   display_name text,
   learning_language text not null default 'スペイン語',
+  role text not null default 'FREE' check (role in ('FREE', 'PREMIUM', 'TESTER', 'ADMIN')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -119,7 +120,9 @@ create index if not exists learning_stats_user_language_idx on public.learning_s
 create index if not exists daily_streaks_user_language_date_idx on public.daily_streaks(user_id, language, learning_date desc);
 create index if not exists word_usage_user_language_count_idx on public.word_usage(user_id, language, count desc);
 grant usage on schema public to anon, authenticated;
-grant select, insert, update, delete on table public.profiles to authenticated;
+grant select, delete on table public.profiles to authenticated;
+grant insert (id, email, display_name, learning_language, created_at, updated_at) on table public.profiles to authenticated;
+grant update (id, email, display_name, learning_language, updated_at) on table public.profiles to authenticated;
 grant select, insert, update, delete on table public.recordings to authenticated;
 grant select, insert, update, delete on table public.transcripts to authenticated;
 grant select, insert, update, delete on table public.feedbacks to authenticated;
@@ -140,9 +143,21 @@ alter table public.daily_streaks enable row level security;
 alter table public.settings enable row level security;
 alter table public.word_usage enable row level security;
 
+create or replace function public.current_user_role()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select role from public.profiles where id = auth.uid()
+$$;
+
 create policy "profiles_select_own" on public.profiles for select using (id = auth.uid());
+create policy "profiles_select_admin" on public.profiles for select using (public.current_user_role() = 'ADMIN');
 create policy "profiles_insert_own" on public.profiles for insert with check (id = auth.uid());
-create policy "profiles_update_own" on public.profiles for update using (id = auth.uid()) with check (id = auth.uid());
+create policy "profiles_update_own_basic" on public.profiles for update using (id = auth.uid()) with check (id = auth.uid());
+create policy "profiles_update_admin" on public.profiles for update using (public.current_user_role() = 'ADMIN') with check (public.current_user_role() = 'ADMIN');
 create policy "profiles_delete_own" on public.profiles for delete using (id = auth.uid());
 
 create policy "recordings_select_own" on public.recordings for select using (user_id = auth.uid());
