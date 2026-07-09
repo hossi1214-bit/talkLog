@@ -1,18 +1,22 @@
-# TalkLog
+﻿# TalkLog
 
 TalkLog は、録音したスピーキング練習を保存し、履歴・学習進捗・AI添削につなげる Flutter アプリです。
 
 ## 実装済み
 
+- メール登録 / メールログイン / ログアウト
+- ログイン状態の保持
+- 未ログイン時は設定画面のみ利用可能
+- ユーザー権限 `FREE / PREMIUM / TESTER / ADMIN`
+- `profiles.role` による有料機能制御
 - 録音、再生、履歴保存
-- 履歴削除前の確認
+- 履歴削除前の確認、複数削除
 - 学習言語の変更
-- Supabase 匿名ログイン
 - Supabase Storage / Table への録音同期
 - クラウド履歴の取り込み
-- ダミーAI添削
-- Supabase Edge Functions 経由のAI添削呼び出し口
+- Supabase Edge Functions 経由のAI添削
 - OpenAI APIキー設定後の文字起こし・添削処理
+- Edge Function 側の権限チェック
 - 保存済みAI添削結果の再表示
 - AI添削の再解析
 - 語彙メモから単語帳への追加
@@ -34,28 +38,48 @@ flutter run `
 ## Supabase
 
 初回は Supabase SQL Editor で `docs/supabase_schema.sql` を実行します。
+既存DBへ権限設計だけ追加する場合は `docs/supabase_migration_user_roles.sql` を実行します。
 
-詳細は以下を参照してください。
+### 権限
 
-- `docs/supabase_setup.md`
-- `docs/edge_functions_setup.md`
-- `docs/api.md`
+| role | 説明 | 有料機能 |
+|---|---|---|
+| `FREE` | 無料ユーザー | 利用不可 |
+| `PREMIUM` | 有料ユーザー | 利用可 |
+| `TESTER` | βテスター | 利用可 |
+| `ADMIN` | 管理者 | 利用可 |
+
+`ADMIN` / `TESTER` / `PREMIUM` の付与はアプリからは行いません。Supabase Dashboard または service-role を使う管理者専用処理で変更します。
+
+自分を管理者にする例:
+
+```sql
+update public.profiles
+set role = 'ADMIN'
+where email = 'YOUR_EMAIL@example.com';
+```
 
 ## Edge Function デプロイ
 
+Supabase CLI を直接入れていない場合は `npx supabase@latest` を使います。
+
 ```powershell
 cd C:\flutter\talkLog\backend\supabase
-supabase link --project-ref YOUR_PROJECT_REF
-supabase functions deploy analyze-recording
+npx supabase@latest link --project-ref YOUR_PROJECT_REF
+npx supabase@latest functions deploy analyze-recording
 ```
 
 OpenAI を使う場合は Supabase Secrets に APIキーを登録します。
 
 ```powershell
-supabase secrets set OPENAI_API_KEY=YOUR_OPENAI_API_KEY
+npx supabase@latest secrets set OPENAI_API_KEY=YOUR_OPENAI_API_KEY
 ```
 
-APIキーを登録していない場合でも、アプリ内のデモ添削にフォールバックします。
+## Android リリース
+
+内部テスト用 AAB の作成手順は以下を参照してください。
+
+- `docs/android_release.md`
 
 ## 検証コマンド
 
@@ -64,4 +88,5 @@ cd C:\flutter\talkLog\app
 dart format lib test
 flutter analyze
 flutter test
+flutter build apk --debug
 ```
