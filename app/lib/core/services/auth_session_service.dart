@@ -1,0 +1,252 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'supabase_service.dart';
+
+class AuthSessionService extends ChangeNotifier {
+  AuthSessionService._();
+
+  static final AuthSessionService instance = AuthSessionService._();
+  static const emailRedirectTo = 'talklog://login-callback';
+
+  bool _isLoading = false;
+  String? _errorMessage;
+  String? _message;
+  StreamSubscription<AuthState>? _authStateSubscription;
+
+  bool get isConfigured => SupabaseService.isConfigured;
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+  String? get message => _message;
+
+  SupabaseClient? get _client => SupabaseService.client;
+  User? get currentUser => _client?.auth.currentUser;
+  String? get userId => currentUser?.id;
+  String? get email => currentUser?.email;
+  bool get isSignedIn => currentUser != null;
+  bool get isAnonymous => currentUser?.isAnonymous ?? false;
+  bool get isEmailSignedIn => isSignedIn && !isAnonymous;
+
+  String get providerLabel {
+    final user = currentUser;
+    if (user == null || user.isAnonymous) {
+      return '未ログイン';
+    }
+    final provider = user.appMetadata['provider'] as String?;
+    return switch (provider) {
+      'email' => 'メール',
+      'google' => 'Google',
+      'apple' => 'Apple',
+      _ => provider ?? 'メール',
+    };
+  }
+
+  String get statusLabel {
+    if (!isConfigured) {
+      return 'Supabase未設定';
+    }
+    if (_isLoading) {
+      return '接続中';
+    }
+    if (isEmailSignedIn) {
+      return '$providerLabelでログイン中';
+    }
+    if (_errorMessage != null) {
+      return '接続エラー';
+    }
+    return '未ログイン';
+  }
+
+  Future<void> initializeSession() async {
+    if (!SupabaseService.isConfigured) {
+      _errorMessage = null;
+      _message = null;
+      notifyListeners();
+      return;
+    }
+
+    await SupabaseService.initializeIfConfigured();
+    final client = _client;
+    if (client == null) {
+      return;
+    }
+    _ensureAuthListener(client);
+
+    _errorMessage = null;
+    if (client.auth.currentUser?.isAnonymous ?? false) {
+      await client.auth.signOut();
+    }
+    notifyListeners();
+
+    if (isEmailSignedIn) {
+      await _tryEnsureProfile(client);
+    }
+  }
+
+  Future<void> registerEmailAccount({
+    required String email,
+    required String password,
+  }) async {
+    final normalizedEmail = email.trim();
+    final validationError = _validateEmailPassword(normalizedEmail, password);
+    if (validationError != null) {
+      _errorMessage = validationError;
+      _message = null;
+      notifyListeners();
+      return;
+    }
+
+    await _withAuthClient((client) async {
+      await client.auth.signUp(
+        email: normalizedEmail,
+        password: password,
+        emailRedirectTo: emailRedirectTo,
+      );
+      _message = '確認メールを送信しました。メール内のリンクから登録を完了してください。';
+      await _tryEnsureProfile(client);
+    }, actionLabel: 'メール登録');
+  }
+
+  Future<void> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    final normalizedEmail = email.trim();
+    final validationError = _validateEmailPassword(normalizedEmail, password);
+    if (validationError != null) {
+      _errorMessage = validationError;
+      _message = null;
+      notifyListeners();
+      return;
+    }
+
+    await _withAuthClient((client) async {
+      await client.auth.signInWithPassword(
+        email: normalizedEmail,
+        password: password,
+      );
+      _message = 'メールアカウントでログインしました。';
+      await _tryEnsureProfile(client);
+    }, actionLabel: 'メールログイン');
+  }
+
+  Future<void> signOut() async {
+    final client = _client;
+    if (client == null || _isLoading) {
+      return;
+    }
+
+    _isLoading = true;
+    _errorMessage = null;
+    _message = null;
+    notifyListeners();
+
+    try {
+      await client.auth.signOut();
+      _message = 'ログアウトしました。';
+    } catch (error) {
+      _errorMessage = 'ログアウトに失敗しました: ${_friendlyError(error)}';
+      _message = null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> retry() async {
+    await initializeSession();
+  }
+
+  Future<void> _withAuthClient(
+    Future<void> Function(SupabaseClient client) action, {
+    required String actionLabel,
+  }) async {
+    if (!SupabaseService.isConfigured) {
+      _errorMessage = 'Supabaseが未設定のため、$actionLabelを利用できません。';
+      _message = null;
+      notifyListeners();
+      return;
+    }
+
+    await SupabaseService.initializeIfConfigured();
+    final client = _client;
+    if (client == null || _isLoading) {
+      return;
+    }
+    _ensureAuthListener(client);
+
+    _isLoading = true;
+    _errorMessage = null;
+    _message = null;
+    notifyListeners();
+
+    try {
+      await action(client);
+      _errorMessage = null;
+    } catch (error) {
+      _errorMessage = '$actionLabelに失敗しました: ${_friendlyError(error)}';
+      _message = null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void _ensureAuthListener(SupabaseClient client) {
+    _authStateSubscription ??= client.auth.onAuthStateChange.listen((event) {
+      _errorMessage = null;
+      if (event.session != null && event.session!.user.isAnonymous == false) {
+        _message = '$providerLabelでログインしました。';
+      }
+      notifyListeners();
+      unawaited(_tryEnsureProfile(client));
+    });
+  }
+
+  Future<void> _tryEnsureProfile(SupabaseClient client) async {
+    try {
+      await _ensureProfile(client);
+    } catch (_) {
+      // ログイン自体は成功しているため、プロフィール初期同期の失敗は同期時に表示する。
+    }
+  }
+
+  Future<void> _ensureProfile(SupabaseClient client) async {
+    final user = client.auth.currentUser;
+    if (user == null || user.isAnonymous) {
+      return;
+    }
+
+    await client.from('profiles').upsert({
+      'id': user.id,
+      'email': user.email,
+      'display_name': user.email ?? 'メールユーザー',
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    });
+
+    await client.from('settings').upsert({
+      'user_id': user.id,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'user_id');
+  }
+
+  String? _validateEmailPassword(String email, String password) {
+    if (email.isEmpty || !email.contains('@')) {
+      return 'メールアドレスを入力してください。';
+    }
+    if (password.length < 6) {
+      return 'パスワードは6文字以上で入力してください。';
+    }
+    return null;
+  }
+
+  String _friendlyError(Object error) {
+    final message = error.toString();
+    if (message.length <= 160) {
+      return message;
+    }
+    return '${message.substring(0, 160)}...';
+  }
+}
