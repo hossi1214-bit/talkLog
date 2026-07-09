@@ -494,14 +494,39 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
               Text(widget.email!, style: theme.textTheme.bodySmall),
             ],
             const SizedBox(height: 8),
-            Chip(
-              avatar: Icon(
-                widget.canUsePremiumFeature
-                    ? Icons.workspace_premium_outlined
-                    : Icons.lock_outline,
-                size: 18,
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.45,
+                ),
+                borderRadius: BorderRadius.circular(8),
               ),
-              label: Text('権限: '),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      widget.canUsePremiumFeature
+                          ? Icons.workspace_premium_outlined
+                          : Icons.lock_outline,
+                      color: theme.colorScheme.primary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '権限: ${widget.roleLabel}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             if (isEmailLoggedIn) ...[
