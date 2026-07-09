@@ -45,6 +45,7 @@ app/coverage/
 # Android / Gradle
 .gradle/
 **/.gradle/
+**/.kotlin/
 **/build/
 app/android/.gradle/
 app/android/local.properties
