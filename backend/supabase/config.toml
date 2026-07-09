@@ -1,0 +1,4 @@
+project_id = "talklog"
+
+[functions.analyze-recording]
+verify_jwt = true
