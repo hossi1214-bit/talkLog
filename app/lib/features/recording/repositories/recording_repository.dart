@@ -9,6 +9,7 @@ import '../models/record_entry.dart';
 abstract class RecordingRepository {
   Future<void> syncRecording(RecordEntry entry);
   Future<List<RecordEntry>> fetchRecordings();
+  Future<int> fetchAudioStorageUsageBytes();
   Future<bool> hasRemoteRecording(RecordEntry entry);
   Future<void> deleteRecording(RecordEntry entry);
 }
@@ -33,8 +34,11 @@ class SupabaseRecordingRepository implements RecordingRepository {
 
     final remoteAudioPath = _remoteAudioPath(userId: userId, entry: entry);
     final audioFile = File(entry.audioPath);
+    final audioSizeBytes = await audioFile.exists()
+        ? await audioFile.length()
+        : 0;
 
-    if (await audioFile.exists()) {
+    if (audioSizeBytes > 0) {
       await client.storage
           .from('recordings')
           .upload(
@@ -53,6 +57,7 @@ class SupabaseRecordingRepository implements RecordingRepository {
       'language': entry.language,
       'audio_path': remoteAudioPath,
       'local_audio_path': entry.audioPath,
+      'audio_size_bytes': audioSizeBytes,
       'duration_seconds': entry.duration.inSeconds,
       'created_at': entry.createdAt.toUtc().toIso8601String(),
       'updated_at': DateTime.now().toUtc().toIso8601String(),
@@ -110,6 +115,33 @@ class SupabaseRecordingRepository implements RecordingRepository {
     }
 
     return entries;
+  }
+
+  @override
+  Future<int> fetchAudioStorageUsageBytes() async {
+    final client = _client;
+    final userId = client?.auth.currentUser?.id;
+    if (client == null || userId == null) {
+      return 0;
+    }
+
+    final rows = await client
+        .from('recordings')
+        .select('audio_size_bytes')
+        .eq('user_id', userId);
+
+    var totalBytes = 0;
+    for (final row in rows) {
+      final data = Map<String, dynamic>.from(row as Map);
+      final audioSizeBytes = data['audio_size_bytes'];
+      totalBytes += switch (audioSizeBytes) {
+        int value => value,
+        num value => value.toInt(),
+        String value => int.tryParse(value) ?? 0,
+        _ => 0,
+      };
+    }
+    return totalBytes;
   }
 
   @override

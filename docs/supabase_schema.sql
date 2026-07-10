@@ -19,6 +19,7 @@ create table if not exists public.recordings (
   language text not null,
   audio_path text,
   local_audio_path text,
+  audio_size_bytes bigint not null default 0 check (audio_size_bytes >= 0),
   duration_seconds integer not null default 0 check (duration_seconds >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

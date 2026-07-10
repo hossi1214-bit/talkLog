@@ -21,6 +21,7 @@ class RecordingStore extends ChangeNotifier {
   DateTime? _lastSyncedAt;
   String? _lastSyncError;
   String? _lastSyncMessage;
+  int _cloudAudioStorageBytes = 0;
   RecordingRepository? _remoteRepository;
 
   List<RecordEntry> get entries => List.unmodifiable(_entries);
@@ -29,6 +30,7 @@ class RecordingStore extends ChangeNotifier {
   DateTime? get lastSyncedAt => _lastSyncedAt;
   String? get lastSyncError => _lastSyncError;
   String? get lastSyncMessage => _lastSyncMessage;
+  int get cloudAudioStorageBytes => _cloudAudioStorageBytes;
 
   RecordingRepository get _repository {
     return _remoteRepository ??= SupabaseRecordingRepository();
@@ -79,6 +81,7 @@ class RecordingStore extends ChangeNotifier {
     _isSyncing = true;
     _lastSyncError = null;
     _lastSyncMessage = null;
+    _cloudAudioStorageBytes = 0;
     notifyListeners();
 
     try {
@@ -90,6 +93,7 @@ class RecordingStore extends ChangeNotifier {
       _isLoaded = true;
       await _save();
       _lastSyncedAt = DateTime.now();
+      await refreshAudioStorageUsage(notify: false);
       _lastSyncMessage = remoteEntries.isEmpty
           ? 'クラウドに録音履歴はありません。'
           : 'クラウドから${remoteEntries.length}件読み込みました';
@@ -113,6 +117,7 @@ class RecordingStore extends ChangeNotifier {
     _lastSyncedAt = null;
     _lastSyncError = null;
     _lastSyncMessage = null;
+    _cloudAudioStorageBytes = 0;
     notifyListeners();
   }
 
@@ -125,6 +130,7 @@ class RecordingStore extends ChangeNotifier {
     _isSyncing = true;
     _lastSyncError = null;
     _lastSyncMessage = null;
+    _cloudAudioStorageBytes = 0;
     notifyListeners();
 
     try {
@@ -143,6 +149,7 @@ class RecordingStore extends ChangeNotifier {
       await _save();
 
       _lastSyncedAt = DateTime.now();
+      await refreshAudioStorageUsage(notify: false);
       _lastSyncMessage = importedCount == 0
           ? 'クラウド同期が完了しました'
           : 'クラウドから$importedCount件取り込みました';
@@ -158,12 +165,31 @@ class RecordingStore extends ChangeNotifier {
     try {
       await _repository.syncRecording(entry);
       _lastSyncedAt = DateTime.now();
+      await refreshAudioStorageUsage(notify: false);
       _lastSyncError = null;
       _lastSyncMessage = 'クラウド同期が完了しました';
     } catch (error) {
       _lastSyncError = _friendlyError(error);
     } finally {
       notifyListeners();
+    }
+  }
+
+  Future<void> refreshAudioStorageUsage({bool notify = true}) async {
+    try {
+      final usageBytes = await _repository.fetchAudioStorageUsageBytes();
+      if (usageBytes == _cloudAudioStorageBytes) {
+        return;
+      }
+      _cloudAudioStorageBytes = usageBytes;
+      if (notify) {
+        notifyListeners();
+      }
+    } catch (error) {
+      _lastSyncError = _friendlyError(error);
+      if (notify) {
+        notifyListeners();
+      }
     }
   }
 
@@ -187,6 +213,7 @@ class RecordingStore extends ChangeNotifier {
   Future<void> _deleteRemoteEntry(RecordEntry entry) async {
     try {
       await _repository.deleteRecording(entry);
+      await refreshAudioStorageUsage(notify: false);
     } catch (_) {
       // クラウド削除に失敗してもローカル削除は完了させる。
     }

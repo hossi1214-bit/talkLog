@@ -39,6 +39,7 @@ flutter run `
 
 初回は Supabase SQL Editor で `docs/supabase_schema.sql` を実行します。
 既存DBへ権限設計だけ追加する場合は `docs/supabase_migration_user_roles.sql` を実行します。
+容量メーターをSupabase保存容量ベースで使う場合は `docs/supabase_migration_recording_audio_size.sql` も実行します。
 
 ### 権限
 

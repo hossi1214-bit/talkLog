@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../core/services/auth_session_service.dart';
@@ -22,16 +20,17 @@ class _HomePageState extends State<HomePage> {
   final _settingsStore = AppSettingsStore.instance;
   final _authSessionService = AuthSessionService.instance;
 
-  int _audioStorageBytes = 0;
-  int _storageGeneration = 0;
-
   @override
   void initState() {
     super.initState();
     _recordingStore.addListener(_handleStateChanged);
     _settingsStore.addListener(_handleStateChanged);
     _authSessionService.addListener(_handleStateChanged);
-    unawaited(_recordingStore.load().then((_) => _refreshAudioStorageBytes()));
+    unawaited(
+      _recordingStore.load().then(
+        (_) => _recordingStore.refreshAudioStorageUsage(),
+      ),
+    );
     _settingsStore.load();
   }
 
@@ -46,7 +45,6 @@ class _HomePageState extends State<HomePage> {
   void _handleStateChanged() {
     if (mounted) {
       setState(() {});
-      unawaited(_refreshAudioStorageBytes());
     }
   }
 
@@ -84,7 +82,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 12),
                 _AudioStorageCard(
-                  usedBytes: _audioStorageBytes,
+                  usedBytes: _recordingStore.cloudAudioStorageBytes,
                   hasUnlimitedStorage: _authSessionService.canUsePremiumFeature,
                 ),
                 const SizedBox(height: 12),
@@ -116,22 +114,6 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
     );
-  }
-
-  Future<void> _refreshAudioStorageBytes() async {
-    final generation = ++_storageGeneration;
-    var totalBytes = 0;
-    for (final entry in _recordingStore.entries) {
-      final file = File(entry.audioPath);
-      if (await file.exists()) {
-        totalBytes += await file.length();
-      }
-    }
-    if (mounted && generation == _storageGeneration) {
-      setState(() {
-        _audioStorageBytes = totalBytes;
-      });
-    }
   }
 
   String _formatDuration(Duration duration) {
