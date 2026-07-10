@@ -72,6 +72,12 @@ class _RecordPageState extends State<RecordPage> {
                           ),
                         ),
                       ],
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 240),
+                        child: _controller.isRecording
+                            ? const _TalkingImage()
+                            : const SizedBox(height: 20),
+                      ),
                       const SizedBox(height: 20),
                       Text(
                         _formatDuration(_controller.elapsed),
@@ -118,6 +124,24 @@ class _RecordPageState extends State<RecordPage> {
     final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+}
+
+class _TalkingImage extends StatelessWidget {
+  const _TalkingImage();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: const ValueKey('talking-image'),
+      padding: const EdgeInsets.only(top: 20),
+      child: Image.asset(
+        'assets/images/talkLog_talking.png',
+        width: 148,
+        height: 148,
+        fit: BoxFit.contain,
+      ),
+    );
   }
 }
 
