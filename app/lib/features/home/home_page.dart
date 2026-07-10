@@ -1,5 +1,9 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
+import '../../core/services/auth_session_service.dart';
 import '../progress/models/learning_stats.dart';
 import '../recording/data/recording_store.dart';
 import '../settings/data/app_settings_store.dart';
@@ -16,13 +20,18 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final _recordingStore = RecordingStore.instance;
   final _settingsStore = AppSettingsStore.instance;
+  final _authSessionService = AuthSessionService.instance;
+
+  int _audioStorageBytes = 0;
+  int _storageGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     _recordingStore.addListener(_handleStateChanged);
     _settingsStore.addListener(_handleStateChanged);
-    _recordingStore.load();
+    _authSessionService.addListener(_handleStateChanged);
+    unawaited(_recordingStore.load().then((_) => _refreshAudioStorageBytes()));
     _settingsStore.load();
   }
 
@@ -30,12 +39,14 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _recordingStore.removeListener(_handleStateChanged);
     _settingsStore.removeListener(_handleStateChanged);
+    _authSessionService.removeListener(_handleStateChanged);
     super.dispose();
   }
 
   void _handleStateChanged() {
     if (mounted) {
       setState(() {});
+      unawaited(_refreshAudioStorageBytes());
     }
   }
 
@@ -72,6 +83,11 @@ class _HomePageState extends State<HomePage> {
                   onStartRecording: widget.onStartRecording,
                 ),
                 const SizedBox(height: 12),
+                _AudioStorageCard(
+                  usedBytes: _audioStorageBytes,
+                  hasUnlimitedStorage: _authSessionService.canUsePremiumFeature,
+                ),
+                const SizedBox(height: 12),
                 _LearningPaceCard(stats: stats),
                 const SizedBox(height: 12),
                 _InfoCard(
@@ -102,6 +118,22 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _refreshAudioStorageBytes() async {
+    final generation = ++_storageGeneration;
+    var totalBytes = 0;
+    for (final entry in _recordingStore.entries) {
+      final file = File(entry.audioPath);
+      if (await file.exists()) {
+        totalBytes += await file.length();
+      }
+    }
+    if (mounted && generation == _storageGeneration) {
+      setState(() {
+        _audioStorageBytes = totalBytes;
+      });
+    }
+  }
+
   String _formatDuration(Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
@@ -109,6 +141,84 @@ class _HomePageState extends State<HomePage> {
       return '$minutes分';
     }
     return '$hours時間$minutes分';
+  }
+}
+
+class _AudioStorageCard extends StatelessWidget {
+  const _AudioStorageCard({
+    required this.usedBytes,
+    required this.hasUnlimitedStorage,
+  });
+
+  static const _freeLimitBytes = 200 * 1024 * 1024;
+
+  final int usedBytes;
+  final bool hasUnlimitedStorage;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final remainingBytes = (_freeLimitBytes - usedBytes).clamp(
+      0,
+      _freeLimitBytes,
+    );
+    final usageRatio = hasUnlimitedStorage
+        ? 0.0
+        : (usedBytes / _freeLimitBytes).clamp(0.0, 1.0);
+    final isLow = !hasUnlimitedStorage && remainingBytes <= 20 * 1024 * 1024;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.storage_outlined, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('音声ストレージ', style: theme.textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: hasUnlimitedStorage ? null : usageRatio,
+                minHeight: 10,
+                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              hasUnlimitedStorage
+                  ? '${_formatBytes(usedBytes)} 使用中 / Premium容量'
+                  : '${_formatBytes(usedBytes)} / ${_formatBytes(_freeLimitBytes)} 使用中',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              hasUnlimitedStorage
+                  ? 'Premium権限のため、容量を気にせず保存できます。'
+                  : isLow
+                  ? '残り${_formatBytes(remainingBytes)}です。Premiumなら容量を気にせず保存できます。'
+                  : '残り${_formatBytes(remainingBytes)}です。録音を続けるほど音声ログが積み上がります。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: isLow ? theme.colorScheme.error : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatBytes(int bytes) {
+    final mb = bytes / (1024 * 1024);
+    if (mb < 10) {
+      return '${mb.toStringAsFixed(1)}MB';
+    }
+    return '${mb.round()}MB';
   }
 }
 

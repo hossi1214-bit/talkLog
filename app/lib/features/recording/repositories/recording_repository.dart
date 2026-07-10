@@ -101,7 +101,7 @@ class SupabaseRecordingRepository implements RecordingRepository {
       entries.add(
         RecordEntry(
           id: id,
-          createdAt: DateTime.parse(createdAtRaw).toLocal(),
+          createdAt: RecordEntry.parseStoredDateTime(createdAtRaw),
           duration: Duration(seconds: data['duration_seconds'] as int? ?? 0),
           audioPath: resolvedAudioPath,
           language: data['language'] as String? ?? 'スペイン語',

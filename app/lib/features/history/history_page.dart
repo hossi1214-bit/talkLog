@@ -32,6 +32,7 @@ class _HistoryPageState extends State<HistoryPage> {
   _DurationFilter _durationFilter = _DurationFilter.all;
   Set<String> _correctedIds = const {};
   final Set<String> _selectedIds = {};
+  RecordEntry? _detailEntry;
 
   bool get _isSelectionMode => _selectedIds.isNotEmpty;
 
@@ -82,6 +83,15 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final detailEntry = _detailEntry;
+    if (detailEntry != null) {
+      return HistoryDetailPage(
+        entry: detailEntry,
+        onClose: _closeDetails,
+        onChanged: _loadCorrectedIds,
+      );
+    }
+
     final entries = _filteredEntries(_store.entries);
 
     return Scaffold(
@@ -561,13 +571,17 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   void _openDetails(RecordEntry entry) {
-    Navigator.of(context)
-        .push(
-          MaterialPageRoute(
-            builder: (context) => HistoryDetailPage(entry: entry),
-          ),
-        )
-        .then((_) => _loadCorrectedIds());
+    setState(() {
+      _detailEntry = entry;
+      _selectedIds.clear();
+    });
+  }
+
+  void _closeDetails() {
+    setState(() {
+      _detailEntry = null;
+    });
+    _loadCorrectedIds();
   }
 
   String _formatDateTime(DateTime dateTime) {

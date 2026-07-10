@@ -11,9 +11,16 @@ import '../recording/models/record_entry.dart';
 import '../recording/repositories/recording_repository.dart';
 
 class HistoryDetailPage extends StatefulWidget {
-  const HistoryDetailPage({required this.entry, super.key});
+  const HistoryDetailPage({
+    required this.entry,
+    this.onClose,
+    this.onChanged,
+    super.key,
+  });
 
   final RecordEntry entry;
+  final VoidCallback? onClose;
+  final VoidCallback? onChanged;
 
   @override
   State<HistoryDetailPage> createState() => _HistoryDetailPageState();
@@ -77,6 +84,13 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onClose == null
+            ? null
+            : IconButton(
+                tooltip: '履歴へ戻る',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onClose,
+              ),
         title: const Text('録音の詳細'),
         actions: [
           IconButton(
@@ -158,7 +172,10 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
             builder: (context) => CorrectionResultPage(entry: widget.entry),
           ),
         )
-        .then((_) => _reloadStatus());
+        .then((_) {
+          _reloadStatus();
+          widget.onChanged?.call();
+        });
   }
 
   Future<void> _showPremiumRequiredDialog() async {
@@ -234,7 +251,12 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
     await _player.stop();
     await RecordingStore.instance.delete(widget.entry);
     if (mounted) {
-      Navigator.of(context).pop();
+      widget.onChanged?.call();
+      if (widget.onClose != null) {
+        widget.onClose!();
+      } else {
+        Navigator.of(context).pop();
+      }
     }
   }
 
