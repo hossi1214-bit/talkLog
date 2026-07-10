@@ -76,10 +76,14 @@ class _SettingsPageState extends State<SettingsPage> {
             isConfigured: _authSessionService.isConfigured,
             isLoading: _authSessionService.isLoading,
             isAnonymous: _authSessionService.isAnonymous,
+            isPasswordRecovery: _authSessionService.isPasswordRecovery,
             message: _authSessionService.message,
             errorMessage: _authSessionService.errorMessage,
             onRegisterEmail: _authSessionService.registerEmailAccount,
             onSignInEmail: _signInEmailAndLoadData,
+            onSendPasswordResetEmail:
+                _authSessionService.sendPasswordResetEmail,
+            onUpdatePassword: _authSessionService.updatePassword,
             onSignOut: _signOutAndClearLocal,
           ),
           const SizedBox(height: 12),
@@ -426,10 +430,13 @@ class _AccountAuthCard extends StatefulWidget {
     required this.isConfigured,
     required this.isLoading,
     required this.isAnonymous,
+    required this.isPasswordRecovery,
     required this.message,
     required this.errorMessage,
     required this.onRegisterEmail,
     required this.onSignInEmail,
+    required this.onSendPasswordResetEmail,
+    required this.onUpdatePassword,
     required this.onSignOut,
   });
 
@@ -440,12 +447,15 @@ class _AccountAuthCard extends StatefulWidget {
   final bool isConfigured;
   final bool isLoading;
   final bool isAnonymous;
+  final bool isPasswordRecovery;
   final String? message;
   final String? errorMessage;
   final Future<void> Function({required String email, required String password})
   onRegisterEmail;
   final Future<void> Function({required String email, required String password})
   onSignInEmail;
+  final Future<void> Function({required String email}) onSendPasswordResetEmail;
+  final Future<void> Function({required String password}) onUpdatePassword;
   final VoidCallback onSignOut;
 
   @override
@@ -455,12 +465,15 @@ class _AccountAuthCard extends StatefulWidget {
 class _AccountAuthCardState extends State<_AccountAuthCard> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _obscureNewPassword = true;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _newPasswordController.dispose();
     super.dispose();
   }
 
@@ -529,7 +542,45 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
               ),
             ),
             const SizedBox(height: 12),
-            if (isEmailLoggedIn) ...[
+            if (widget.isPasswordRecovery) ...[
+              Text('新しいパスワードを設定してください。', style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _newPasswordController,
+                obscureText: _obscureNewPassword,
+                autofillHints: const [AutofillHints.newPassword],
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: '新しいパスワード',
+                  prefixIcon: const Icon(Icons.lock_reset_outlined),
+                  suffixIcon: IconButton(
+                    tooltip: _obscureNewPassword ? '表示' : '非表示',
+                    icon: Icon(
+                      _obscureNewPassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureNewPassword = !_obscureNewPassword;
+                      });
+                    },
+                  ),
+                ),
+                enabled: canUseAuthButtons,
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                icon: widget.isLoading
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check_circle_outline),
+                label: const Text('パスワードを更新'),
+                onPressed: canUseAuthButtons ? _updatePassword : null,
+              ),
+            ] else if (isEmailLoggedIn) ...[
               DecoratedBox(
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surfaceContainerHighest.withValues(
@@ -631,6 +682,13 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
                     label: const Text('メールでログイン'),
                     onPressed: canUseAuthButtons ? _signInEmail : null,
                   ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.help_outline),
+                    label: const Text('パスワードを忘れた場合'),
+                    onPressed: canUseAuthButtons
+                        ? _sendPasswordResetEmail
+                        : null,
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -668,6 +726,17 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
       email: _emailController.text,
       password: _passwordController.text,
     );
+  }
+
+  Future<void> _sendPasswordResetEmail() async {
+    await widget.onSendPasswordResetEmail(email: _emailController.text);
+  }
+
+  Future<void> _updatePassword() async {
+    await widget.onUpdatePassword(password: _newPasswordController.text);
+    if (mounted) {
+      _newPasswordController.clear();
+    }
   }
 
   Future<void> _signInEmail() async {

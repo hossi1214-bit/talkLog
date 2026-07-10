@@ -16,6 +16,7 @@ class AuthSessionService extends ChangeNotifier {
   String? _errorMessage;
   String? _message;
   UserRole _role = UserRole.free;
+  bool _isPasswordRecovery = false;
   StreamSubscription<AuthState>? _authStateSubscription;
 
   bool get isConfigured => SupabaseService.isConfigured;
@@ -27,6 +28,7 @@ class AuthSessionService extends ChangeNotifier {
   String get roleLabel => _role.label;
   bool get canUsePremiumFeature => _role.canUsePremiumFeature;
   bool get isAdmin => _role.isAdmin;
+  bool get isPasswordRecovery => _isPasswordRecovery;
 
   SupabaseClient? get _client => SupabaseService.client;
   User? get currentUser => _client?.auth.currentUser;
@@ -155,6 +157,42 @@ class AuthSessionService extends ChangeNotifier {
     }, actionLabel: 'メールログイン');
   }
 
+  Future<void> sendPasswordResetEmail({required String email}) async {
+    final normalizedEmail = email.trim();
+    final validationError = _validateEmail(normalizedEmail);
+    if (validationError != null) {
+      _errorMessage = validationError;
+      _message = null;
+      notifyListeners();
+      return;
+    }
+
+    await _withAuthClient((client) async {
+      await client.auth.resetPasswordForEmail(
+        normalizedEmail,
+        redirectTo: emailRedirectTo,
+      );
+      _message = 'パスワード再設定メールを送信しました。メール内のリンクから新しいパスワードを設定してください。';
+    }, actionLabel: 'パスワード再設定メール送信');
+  }
+
+  Future<void> updatePassword({required String password}) async {
+    final validationError = _validatePassword(password);
+    if (validationError != null) {
+      _errorMessage = validationError;
+      _message = null;
+      notifyListeners();
+      return;
+    }
+
+    await _withAuthClient((client) async {
+      await client.auth.updateUser(UserAttributes(password: password));
+      _isPasswordRecovery = false;
+      _message = 'パスワードを更新しました。';
+      await _tryEnsureProfile(client);
+    }, actionLabel: 'パスワード更新');
+  }
+
   Future<void> signOut() async {
     final client = _client;
     if (client == null || _isLoading) {
@@ -221,10 +259,15 @@ class AuthSessionService extends ChangeNotifier {
   void _ensureAuthListener(SupabaseClient client) {
     _authStateSubscription ??= client.auth.onAuthStateChange.listen((event) {
       _errorMessage = null;
-      if (event.session != null && event.session!.user.isAnonymous == false) {
+      if (event.event == AuthChangeEvent.passwordRecovery) {
+        _isPasswordRecovery = true;
+        _message = '新しいパスワードを入力してください。';
+      } else if (event.session != null &&
+          event.session!.user.isAnonymous == false) {
         _message = '$providerLabelでログインしました。';
       } else {
         _role = UserRole.free;
+        _isPasswordRecovery = false;
       }
       notifyListeners();
       unawaited(_tryEnsureProfile(client));
@@ -278,9 +321,17 @@ class AuthSessionService extends ChangeNotifier {
   }
 
   String? _validateEmailPassword(String email, String password) {
+    return _validateEmail(email) ?? _validatePassword(password);
+  }
+
+  String? _validateEmail(String email) {
     if (email.isEmpty || !email.contains('@')) {
       return 'メールアドレスを入力してください。';
     }
+    return null;
+  }
+
+  String? _validatePassword(String password) {
     if (password.length < 6) {
       return 'パスワードは6文字以上で入力してください。';
     }
