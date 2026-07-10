@@ -157,23 +157,26 @@ class AuthSessionService extends ChangeNotifier {
     }, actionLabel: 'メールログイン');
   }
 
-  Future<void> sendPasswordResetEmail({required String email}) async {
+  Future<bool> sendPasswordResetEmail({required String email}) async {
     final normalizedEmail = email.trim();
     final validationError = _validateEmail(normalizedEmail);
     if (validationError != null) {
       _errorMessage = validationError;
       _message = null;
       notifyListeners();
-      return;
+      return false;
     }
 
+    var didSend = false;
     await _withAuthClient((client) async {
       await client.auth.resetPasswordForEmail(
         normalizedEmail,
         redirectTo: emailRedirectTo,
       );
+      didSend = true;
       _message = 'パスワード再設定メールを送信しました。メール内のリンクから新しいパスワードを設定してください。';
     }, actionLabel: 'パスワード再設定メール送信');
+    return didSend && _errorMessage == null;
   }
 
   Future<void> updatePassword({required String password}) async {

@@ -454,7 +454,7 @@ class _AccountAuthCard extends StatefulWidget {
   onRegisterEmail;
   final Future<void> Function({required String email, required String password})
   onSignInEmail;
-  final Future<void> Function({required String email}) onSendPasswordResetEmail;
+  final Future<bool> Function({required String email}) onSendPasswordResetEmail;
   final Future<void> Function({required String password}) onUpdatePassword;
   final VoidCallback onSignOut;
 
@@ -468,6 +468,7 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
   final _newPasswordController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureNewPassword = true;
+  bool _passwordResetEmailSent = false;
 
   @override
   void dispose() {
@@ -691,6 +692,35 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
                   ),
                 ],
               ),
+              if (_passwordResetEmailSent) ...[
+                const SizedBox(height: 10),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer.withValues(
+                      alpha: 0.55,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.mark_email_read_outlined,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '再設定メールを送信しました。メールを確認してください。',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               Text(
                 'メール登録すると、この端末の学習データを後から復元しやすくなります。',
@@ -722,6 +752,9 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
   }
 
   Future<void> _registerEmail() async {
+    setState(() {
+      _passwordResetEmailSent = false;
+    });
     await widget.onRegisterEmail(
       email: _emailController.text,
       password: _passwordController.text,
@@ -729,7 +762,20 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
   }
 
   Future<void> _sendPasswordResetEmail() async {
-    await widget.onSendPasswordResetEmail(email: _emailController.text);
+    final wasSent = await widget.onSendPasswordResetEmail(
+      email: _emailController.text,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _passwordResetEmailSent = wasSent;
+    });
+    if (wasSent) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('パスワード再設定メールを送信しました。')));
+    }
   }
 
   Future<void> _updatePassword() async {
@@ -740,6 +786,9 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
   }
 
   Future<void> _signInEmail() async {
+    setState(() {
+      _passwordResetEmailSent = false;
+    });
     await widget.onSignInEmail(
       email: _emailController.text,
       password: _passwordController.text,
