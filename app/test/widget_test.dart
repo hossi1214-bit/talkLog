@@ -10,6 +10,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
 
     await tester.pumpWidget(const TalkLogApp());
+    await tester.pump(const Duration(milliseconds: 1300));
     await tester.pumpAndSettle();
 
     expect(find.text('ホーム'), findsOneWidget);

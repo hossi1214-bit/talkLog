@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
 import 'navigation.dart';
+import 'startup_splash.dart';
 
 class TalkLogApp extends StatelessWidget {
   const TalkLogApp({super.key});
@@ -12,7 +13,7 @@ class TalkLogApp extends StatelessWidget {
       title: 'TalkLog',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const AppNavigation(),
+      home: const StartupSplash(child: AppNavigation()),
     );
   }
 }
