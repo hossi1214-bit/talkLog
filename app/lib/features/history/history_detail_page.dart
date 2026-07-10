@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../../core/utils/japan_time.dart';
+
 import '../../core/services/auth_session_service.dart';
 import '../correction/correction_result_page.dart';
 import '../correction/repositories/correction_repository.dart';
@@ -261,7 +263,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
   }
 
   String _formatDateTime(DateTime dateTime) {
-    final local = dateTime.toLocal();
+    final local = JapanTime.from(dateTime);
     final month = local.month.toString().padLeft(2, '0');
     final day = local.day.toString().padLeft(2, '0');
     final hour = local.hour.toString().padLeft(2, '0');

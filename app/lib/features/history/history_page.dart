@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../../core/utils/japan_time.dart';
+
 import '../correction/repositories/correction_repository.dart';
 import '../recording/data/recording_store.dart';
 import '../recording/models/record_entry.dart';
@@ -585,7 +587,7 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   String _formatDateTime(DateTime dateTime) {
-    final local = dateTime.toLocal();
+    final local = JapanTime.from(dateTime);
     final month = local.month.toString().padLeft(2, '0');
     final day = local.day.toString().padLeft(2, '0');
     final hour = local.hour.toString().padLeft(2, '0');
@@ -636,9 +638,8 @@ enum _DateRangeFilter {
   final String label;
 
   bool matches(DateTime value) {
-    final now = DateTime.now();
-    final date = DateTime(value.year, value.month, value.day);
-    final today = DateTime(now.year, now.month, now.day);
+    final date = JapanTime.dateOnly(value);
+    final today = JapanTime.today();
     return switch (this) {
       _DateRangeFilter.all => true,
       _DateRangeFilter.today => date == today,
