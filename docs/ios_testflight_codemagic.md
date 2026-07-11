@@ -113,3 +113,14 @@ IOS_APP_STORE
 - Codemagic環境変数登録
 - `codemagic.yaml` の追加判断
 - iOS TestFlight初回アップロード
+## 10. 現在のcodemagic.yaml
+
+このリポジトリの `codemagic.yaml` は安全版です。
+
+- ワークフロー名: `ios-build-check`
+- 実行方法: Codemagic画面から手動実行
+- 実行内容: `flutter pub get` / `flutter analyze` / `flutter test` / `flutter build ios --release --no-codesign`
+- TestFlight自動アップロード: 無効
+- App Store Connect publishing: 未設定
+
+TestFlightへ自動アップロードする場合は、Bundle ID、App Store Connect API Key、iOS code signing の準備後に publishing 設定を追加します。
