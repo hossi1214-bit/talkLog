@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/auth_session_service.dart';
 import '../../settings/data/app_settings_store.dart';
 import '../data/recording_store.dart';
 import '../models/record_entry.dart';
@@ -73,6 +74,15 @@ class RecordController extends ChangeNotifier {
 
     try {
       await _settings.load();
+      final storageLimit = AuthSessionService.instance.audioStorageLimitBytes;
+      if (storageLimit != null) {
+        await _store.refreshAudioStorageUsage(notify: false);
+        if (_store.cloudAudioStorageBytes >= storageLimit) {
+          throw const RecordStartException(
+            '無料プランの音声保存容量200MBに達しています。Premiumなら容量を気にせず保存できます。',
+          );
+        }
+      }
       await _recordService.start();
       _isRecording = true;
       _startTimer();
@@ -118,6 +128,31 @@ class RecordController extends ChangeNotifier {
       _errorMessage = '録音を保存できませんでした: ${_friendlyError(error.message)}';
     } catch (error) {
       _errorMessage = '録音を保存できませんでした: ${_friendlyError(error)}';
+    } finally {
+      _isBusy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> cancelRecording() async {
+    _ensureSettingsStore();
+    if (!_isRecording || _isBusy) {
+      _stopRecordingClock();
+      notifyListeners();
+      return;
+    }
+
+    _isBusy = true;
+    _stopRecordingClock();
+    notifyListeners();
+
+    try {
+      await _recordService.cancel();
+      _errorMessage = null;
+    } on RecordSaveException catch (error) {
+      _errorMessage = '録音をキャンセルできませんでした: ${_friendlyError(error.message)}';
+    } catch (error) {
+      _errorMessage = '録音をキャンセルできませんでした: ${_friendlyError(error)}';
     } finally {
       _isBusy = false;
       notifyListeners();

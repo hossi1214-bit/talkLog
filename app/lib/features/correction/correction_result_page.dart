@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../core/services/auth_session_service.dart';
 import '../recording/models/record_entry.dart';
 import '../vocabulary/repositories/vocabulary_repository.dart';
 import 'models/ai_correction_result.dart';
 import 'repositories/correction_repository.dart';
-import 'services/dummy_correction_service.dart';
 import 'services/edge_function_correction_service.dart';
 
 class CorrectionResultPage extends StatefulWidget {
@@ -18,8 +16,6 @@ class CorrectionResultPage extends StatefulWidget {
 }
 
 class _CorrectionResultPageState extends State<CorrectionResultPage> {
-  final _authSessionService = AuthSessionService.instance;
-  final _dummyCorrectionService = const DummyCorrectionService();
   final _edgeCorrectionService = EdgeFunctionCorrectionService();
   final _correctionRepository = CorrectionRepository();
   final _vocabularyRepository = VocabularyRepository();
@@ -50,18 +46,9 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
   }
 
   Future<_CorrectionViewData> _analyzeAndSync() async {
-    AiCorrectionResult result;
-    var sourceLabel = 'Edge Function';
+    final result = await _edgeCorrectionService.analyze(widget.entry);
+    const sourceLabel = 'Edge Function';
     String? notice;
-
-    try {
-      result = await _edgeCorrectionService.analyze(widget.entry);
-    } catch (error) {
-      result = await _dummyCorrectionService.analyze(widget.entry);
-      sourceLabel = 'デモ添削';
-      notice =
-          'Edge Functionを利用できなかったため、デモ添削を表示しています。原因: ${_friendlyError(error)}';
-    }
 
     try {
       await _correctionRepository.saveResult(
@@ -71,7 +58,7 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
     } catch (error) {
       final saveError =
           'クラウド保存に失敗しました。表示中の添削結果はこの画面で確認できます。原因: ${_friendlyError(error)}';
-      notice = notice == null ? saveError : '$notice\n$saveError';
+      notice = saveError;
     }
 
     return _CorrectionViewData(
@@ -119,10 +106,6 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_authSessionService.canUsePremiumFeature) {
-      return const _PremiumRequiredScaffold();
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI添削'),
@@ -140,7 +123,7 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
           if (snapshot.hasError) {
             return _CorrectionErrorView(
               message: _friendlyError(snapshot.error!),
-              onRetry: _reanalyze,
+              onClose: () => Navigator.of(context).maybePop(),
             );
           }
           if (!snapshot.hasData) {
@@ -217,6 +200,11 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
 
   String _friendlyError(Object error) {
     final message = error.toString();
+    if (message.contains('429') ||
+        message.contains('Too Many Requests') ||
+        message.contains('本日の無料AI添削回数')) {
+      return '本日の回数上限に達しました。';
+    }
     if (message.length <= 160) {
       return message;
     }
@@ -224,51 +212,11 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
   }
 }
 
-class _PremiumRequiredScaffold extends StatelessWidget {
-  const _PremiumRequiredScaffold();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: const Text('AI添削')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.workspace_premium_outlined,
-                size: 52,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(height: 16),
-              Text('有料機能です', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              const Text(
-                'AI添削はPREMIUM、TESTER、ADMINアカウントで利用できます。',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                icon: const Icon(Icons.arrow_back),
-                label: const Text('戻る'),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _CorrectionErrorView extends StatelessWidget {
-  const _CorrectionErrorView({required this.message, required this.onRetry});
+  const _CorrectionErrorView({required this.message, required this.onClose});
 
   final String message;
-  final VoidCallback onRetry;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -286,9 +234,9 @@ class _CorrectionErrorView extends StatelessWidget {
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
             FilledButton.icon(
-              icon: const Icon(Icons.refresh),
-              label: const Text('もう一度試す'),
-              onPressed: onRetry,
+              icon: const Icon(Icons.close),
+              label: const Text('閉じる'),
+              onPressed: onClose,
             ),
           ],
         ),

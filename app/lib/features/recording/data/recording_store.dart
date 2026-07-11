@@ -59,6 +59,7 @@ class RecordingStore extends ChangeNotifier {
   Future<void> add(RecordEntry entry) async {
     await load();
     _upsertLocal(entry);
+    _sortNewestFirst();
     await _save();
     notifyListeners();
     unawaited(_syncEntry(entry));
@@ -145,7 +146,7 @@ class RecordingStore extends ChangeNotifier {
           importedCount++;
         }
       }
-      _entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _sortNewestFirst();
       await _save();
 
       _lastSyncedAt = DateTime.now();
@@ -208,6 +209,10 @@ class RecordingStore extends ChangeNotifier {
       _entries[index] = entry;
     }
     return false;
+  }
+
+  void _sortNewestFirst() {
+    _entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
   Future<void> _deleteRemoteEntry(RecordEntry entry) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/services/auth_session_service.dart';
 import '../../core/services/supabase_service.dart';
+import '../premium/premium_plan_page.dart';
 import '../recording/data/recording_store.dart';
 import 'data/app_settings_store.dart';
 
@@ -61,11 +62,6 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: Text('現在: ${_settingsStore.learningLanguage}'),
             trailing: const Icon(Icons.chevron_right),
             onTap: _showLanguagePicker,
-          ),
-          const ListTile(
-            leading: Icon(Icons.notifications_none),
-            title: Text('通知'),
-            subtitle: Text('今後の学習リマインダー用の設定項目です。'),
           ),
           const Divider(height: 32),
           _AccountAuthCard(
@@ -543,6 +539,14 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
               ),
             ),
             const SizedBox(height: 12),
+            if (!widget.canUsePremiumFeature) ...[
+              FilledButton.icon(
+                icon: const Icon(Icons.workspace_premium_outlined),
+                label: const Text('Premiumに登録'),
+                onPressed: () => _openPremiumPlan(context),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (widget.isPasswordRecovery) ...[
               Text('新しいパスワードを設定してください。', style: theme.textTheme.bodyMedium),
               const SizedBox(height: 10),
@@ -749,6 +753,10 @@ class _AccountAuthCardState extends State<_AccountAuthCard> {
         ),
       ),
     );
+  }
+
+  void _openPremiumPlan(BuildContext context) {
+    Navigator.of(context).push(PremiumPlanPage.route());
   }
 
   Future<void> _registerEmail() async {

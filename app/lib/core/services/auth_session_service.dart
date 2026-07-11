@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/plan_policy.dart';
 import '../models/user_role.dart';
 import 'supabase_service.dart';
 
@@ -27,6 +28,8 @@ class AuthSessionService extends ChangeNotifier {
   String get roleValue => _role.value;
   String get roleLabel => _role.label;
   bool get canUsePremiumFeature => _role.canUsePremiumFeature;
+  int? get dailyAiCorrectionLimit => PlanPolicy.dailyAiCorrectionLimit(_role);
+  int? get audioStorageLimitBytes => PlanPolicy.audioStorageLimitBytes(_role);
   bool get isAdmin => _role.isAdmin;
   bool get isPasswordRecovery => _isPasswordRecovery;
 

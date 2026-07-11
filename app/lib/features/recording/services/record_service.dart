@@ -52,6 +52,22 @@ class RecordService {
     }
   }
 
+  Future<void> cancel() async {
+    try {
+      final path = await _recorder.stop() ?? _currentPath;
+      _currentPath = null;
+      if (path == null) {
+        return;
+      }
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (error) {
+      throw RecordSaveException(error.toString());
+    }
+  }
+
   Future<void> dispose() async {
     await _recorder.dispose();
   }

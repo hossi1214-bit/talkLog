@@ -389,7 +389,7 @@ class _HistoryPageState extends State<HistoryPage> {
         }
       }
       return true;
-    }).toList();
+    }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
   void _resetFilters() {

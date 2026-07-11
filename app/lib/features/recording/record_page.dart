@@ -95,6 +95,16 @@ class _RecordPageState extends State<RecordPage> {
                         isBusy: _controller.isBusy,
                         onPressed: _controller.toggleRecording,
                       ),
+                      if (_controller.isRecording) ...[
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.close),
+                          label: const Text('録音をキャンセル'),
+                          onPressed: _controller.isBusy
+                              ? null
+                              : _controller.cancelRecording,
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       Text(
                         _controller.isBusy

@@ -29,6 +29,8 @@ type WordAdvice = {
   advice: string;
 };
 
+const freeDailyAiCorrectionLimit = 5;
+
 const defaultLanguage = "スペイン語";
 
 const corsHeaders = {
@@ -79,10 +81,19 @@ Deno.serve(async (request) => {
     if (roleResult.error) {
       return json({ error: roleResult.error }, 500);
     }
-    if (!canUsePremiumFeature(roleResult.role)) {
-      return json({ error: "AI correction requires PREMIUM, TESTER, or ADMIN role", role: roleResult.role }, 403);
+    const quotaResult = await checkAiCorrectionQuota(supabase, user.id, roleResult.role);
+    if (quotaResult.error) {
+      return json({ error: quotaResult.error }, 500);
     }
-
+    if (!quotaResult.allowed) {
+      return json({
+        error: "本日の無料AI添削回数を使い切りました。",
+        role: roleResult.role,
+        limit: quotaResult.limit,
+        used: quotaResult.used,
+        remaining: 0,
+      }, 429);
+    }
     const { data: recordingData, error: recordingError } = await supabase
       .from("recordings")
       .select("id, language, audio_path")
@@ -148,7 +159,7 @@ async function analyzeWithOpenAI({
   language: string;
 }): Promise<CorrectionResult> {
   if (!recording.audio_path) {
-    throw new Error("Recording audio_path is empty");
+    throw new Error("NO_RECOGNIZABLE_SPEECH");
   }
 
   const transcript = await transcribeAudio({ apiKey, supabase, recording });
@@ -191,10 +202,11 @@ async function transcribeAudio({
   if (!response.ok) {
     throw new Error(payload?.error?.message ?? `OpenAI transcription failed: ${response.status}`);
   }
-  if (!payload?.text) {
-    throw new Error("OpenAI transcription response did not include text");
+  const transcript = payload?.text?.trim() ?? "";
+  if (!transcript) {
+    throw new Error("NO_RECOGNIZABLE_SPEECH");
   }
-  return payload.text;
+  return transcript;
 }
 
 async function createCorrection({
@@ -575,6 +587,51 @@ async function loadUserRole(
     return { role: "FREE", error: error.message };
   }
   return { role: parseUserRole(isRecord(data) ? data.role : null) };
+}
+
+
+async function checkAiCorrectionQuota(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  role: UserRole,
+): Promise<{ allowed: boolean; used: number; limit: number | null; error?: string }> {
+  if (canUsePremiumFeature(role)) {
+    return { allowed: true, used: 0, limit: null };
+  }
+
+  const { start, end } = japanDayUtcRange(new Date());
+  const { count, error } = await supabase
+    .from("feedbacks")
+    .select("id, recordings!inner(user_id)", { count: "exact", head: true })
+    .eq("recordings.user_id", userId)
+    .gte("created_at", start.toISOString())
+    .lt("created_at", end.toISOString());
+
+  if (error) {
+    return { allowed: false, used: 0, limit: freeDailyAiCorrectionLimit, error: error.message };
+  }
+
+  const used = count ?? 0;
+  return {
+    allowed: used < freeDailyAiCorrectionLimit,
+    used,
+    limit: freeDailyAiCorrectionLimit,
+  };
+}
+
+function japanDayUtcRange(now: Date): { start: Date; end: Date } {
+  const japanTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const start = new Date(Date.UTC(
+    japanTime.getUTCFullYear(),
+    japanTime.getUTCMonth(),
+    japanTime.getUTCDate(),
+    -9,
+    0,
+    0,
+    0,
+  ));
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
 }
 
 function parseUserRole(value: unknown): UserRole {
