@@ -122,3 +122,9 @@ flutter analyze
 flutter test
 flutter build apk --debug
 ```
+
+## iOS / TestFlight
+
+Codemagic を使った iOS/TestFlight 準備手順は以下を参照してください。
+
+- `docs/ios_testflight_codemagic.md`
