@@ -263,6 +263,7 @@ class _SpeakingDraftPanel extends StatelessWidget {
               minLines: 2,
               maxLines: 4,
               maxLength: 500,
+              keyboardType: TextInputType.multiline,
               textInputAction: TextInputAction.newline,
               decoration: const InputDecoration(
                 labelText: '言いたいこと（日本語）',
