@@ -1,97 +1,132 @@
-# iOS / TestFlight Release Guide with Codemagic
+﻿# iOS / TestFlight Release Guide with Codemagic
 
-Codemagic を使えば、Windows環境でもクラウド上のmacOSビルドマシンで iOS IPA を作成し、TestFlight へアップロードできます。
+Windows環境でも、CodemagicのmacOSビルド環境を使えば iOS のビルド確認や TestFlight 向けIPA作成まで進められます。
 
-## 1. 必要なもの
+このリポジトリの `codemagic.yaml` は、現在は安全版です。TestFlightへ自動アップロードせず、`flutter build ios --release --no-codesign` でiOSビルド確認だけを行います。
 
-- Apple Developer Program 登録済みアカウント
-- App Store Connect に作成済みの talkLog アプリ
-- iOS Bundle ID
-- App Store Connect API Key
-- Codemagic アカウント
-- GitHub の `hossi1214-bit/talkLog` リポジトリ連携
-- Supabase の `SUPABASE_URL`
-- Supabase の `SUPABASE_ANON_KEY`
+## 現在完了していること
 
-## 2. Bundle ID
+- Flutter iOSプロジェクト作成済み
+- iOS表示名を `TalkLog` に設定
+- マイク利用説明を設定済み
+- URL Scheme `talklog` を設定済み
+- iOS LaunchScreen 設定あり
+- AppIcon アセット枠あり
+- Codemagic安全版ワークフロー `ios-build-check` あり
+- Supabase接続値は `--dart-define` で渡す構成
 
-現在の iOS Bundle ID は以下です。
+## まだ必要なもの
+
+| 項目 | 担当 | 状態 |
+|---|---|---|
+| Apple Developer Program登録 | ユーザー | 必要 |
+| App Store Connectでアプリ作成 | ユーザー | 必要 |
+| 本番Bundle ID決定 | ユーザー | 必要 |
+| Xcode/Codemagic側のBundle ID反映 | 開発 | Bundle ID決定後 |
+| App Store Connect API Key作成 | ユーザー | 必要 |
+| CodemagicにGitHub連携 | ユーザー | 必要 |
+| Codemagic環境変数登録 | ユーザー | 必要 |
+| Codemagic iOS code signing設定 | ユーザー | 必要 |
+| TestFlightアップロード用workflow追加 | 開発 | 署名準備後 |
+
+## 1. Bundle IDを決める
+
+現在のBundle IDはFlutter初期値です。
 
 ```text
 com.example.talklog
 ```
 
-TestFlight / App Store に出す前に、独自のIDへ変更してください。
+このままではApp Store向けには使わない方がよいです。Apple Developerで使う独自IDを決めてください。
 
 例:
 
 ```text
-jp.yourname.talklog
+jp.hossi1214.talklog
 ```
 
-一度 App Store Connect に登録した Bundle ID は後から気軽に変更できないため、最初に決めてください。
+Bundle IDはApp Store Connectに登録後、気軽に変更できません。決めたら以下へ反映します。
 
-## 3. App Store Connect API Key を作成
+- `app/ios/Runner.xcodeproj/project.pbxproj`
+- App Store ConnectのBundle ID
+- Codemagicの署名設定
 
-1. App Store Connect を開く
+## 2. App Store Connectでアプリを作る
+
+App Store Connectで新規アプリを作成します。
+
+入力する主な項目:
+
+- アプリ名: `TalkLog`
+- プライマリ言語: 日本語
+- Bundle ID: 手順1で決めたID
+- SKU: 例 `talklog-ios`
+- ユーザーアクセス: フルアクセス
+
+## 3. App Store Connect API Keyを作る
+
+CodemagicからTestFlightへアップロードするためにAPI Keyを作ります。
+
+1. App Store Connectを開く
 2. `ユーザーとアクセス` を開く
-3. `統合` -> `App Store Connect API` を開く
+3. `統合` または `App Store Connect API` を開く
 4. `+` からAPI Keyを作成
-5. 権限は `App Manager` を選択
+5. 権限は `App Manager` を選ぶ
 6. `.p8` ファイルをダウンロード
 7. 以下を控える
    - Issuer ID
    - Key ID
-   - `.p8` ファイル
+   - `.p8` ファイル内容
 
-`.p8` は一度しかダウンロードできません。安全な場所に保存してください。
+`.p8` は一度しかダウンロードできません。安全な場所に保管してください。
 
-## 4. Codemagic にGitHubリポジトリを追加
+## 4. Codemagicに登録する環境変数
 
-1. Codemagic にログイン
-2. `Add application` を選択
-3. GitHub を連携
-4. `hossi1214-bit/talkLog` を選択
-5. Flutter app として追加
+CodemagicのEnvironment variablesに以下を登録します。グループ名は現在の `codemagic.yaml` に合わせて `talklog_app` にしてください。
 
-## 5. Codemagic の環境変数
-
-Codemagic の Environment variables に以下を設定します。
-
-| Variable | 値 | Secret |
+| Variable | 内容 | Secret推奨 |
 |---|---|---|
-| `SUPABASE_URL` | Supabase Project URL | 任意 |
-| `SUPABASE_ANON_KEY` | Supabase anon key | Secret推奨 |
-| `APP_STORE_CONNECT_PRIVATE_KEY` | `.p8` の中身 | Secret |
-| `APP_STORE_CONNECT_KEY_IDENTIFIER` | Key ID | Secret |
-| `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID | Secret |
+| `SUPABASE_URL` | Supabase Project URL | いいえ |
+| `SUPABASE_ANON_KEY` | Supabase anon key | はい |
+| `APP_STORE_CONNECT_PRIVATE_KEY` | `.p8` の中身 | はい |
+| `APP_STORE_CONNECT_KEY_IDENTIFIER` | Key ID | はい |
+| `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID | はい |
+| `IOS_BUNDLE_ID` | 本番Bundle ID | いいえ |
 
-Codemagic の Apple Developer Portal integration を使う場合は、API KeyをIntegrationとして保存し、`codemagic.yaml` から integration 名を参照できます。
+## 5. 現在のCodemagic workflow
 
-## 6. iOS Code Signing
+現在のworkflowは安全版です。
 
-Codemagicでは App Store Connect API Key を使って、必要な証明書と Provisioning Profile を自動取得・作成できます。
-
-必要な署名タイプ:
-
-```text
-IOS_APP_STORE
+```yaml
+ios-build-check
 ```
 
-## 7. codemagic.yaml を追加する場合
+実行内容:
 
-リポジトリに `codemagic.yaml` を追加すると、Codemagic上で以下を自動化できます。
-
+- Flutter / Xcode バージョン確認
 - `flutter pub get`
 - `flutter analyze`
 - `flutter test`
-- iOS code signing
-- `flutter build ipa`
-- TestFlight へのアップロード
+- `flutter build ios --release --no-codesign`
 
-ただし、自動アップロード設定を有効にすると、条件次第でビルド成果物がApp Store Connectへ送信されます。追加前に運用方針を決めてください。
+このworkflowはTestFlightへアップロードしません。署名設定前でもiOSビルドが通るか確認するためのものです。
 
-## 8. 初回TestFlight前に必要なApp Store Connect設定
+## 6. TestFlightへ進む直前に追加すること
+
+Bundle ID、App Store Connect API Key、Codemagic署名設定が完了したら、次にTestFlightアップロード用workflowを追加します。
+
+追加予定の処理:
+
+- App Store配布用の証明書とProvisioning Profile取得
+- `flutter build ipa --release`
+- IPAを成果物として保存
+- 必要に応じてTestFlightへアップロード
+
+自動アップロードを有効にすると、workflow実行時にApp Store Connectへ送信されます。最初は「IPA作成まで」にして、成功確認後にTestFlightアップロードを有効にするのが安全です。
+
+## 7. 初回TestFlight前のApp Store Connect設定
+
+TestFlight配信前に最低限確認する項目です。
 
 - アプリ名
 - Bundle ID
@@ -101,26 +136,30 @@ IOS_APP_STORE
 - プライバシーポリシーURL
 - App Privacy
 - 暗号化に関する質問
-- スクリーンショット
 - テスターグループ
+- テスト情報
+- スクリーンショット
 
-## 9. 現在の未完了項目
+## 8. ローカルでできる確認
 
-- 独自Bundle IDの決定
-- App Store Connectアプリ作成
-- App Store Connect API Key作成
-- Codemagicリポジトリ連携
-- Codemagic環境変数登録
-- `codemagic.yaml` の追加判断
-- iOS TestFlight初回アップロード
-## 10. 現在のcodemagic.yaml
+WindowsではiOS実機ビルドや署名済みIPA作成はできませんが、Flutter側の基本確認はできます。
 
-このリポジトリの `codemagic.yaml` は安全版です。
+```powershell
+cd C:\flutter\talkLog\app
+flutter analyze
+flutter test
+```
 
-- ワークフロー名: `ios-build-check`
-- 実行方法: Codemagic画面から手動実行
-- 実行内容: `flutter pub get` / `flutter analyze` / `flutter test` / `flutter build ios --release --no-codesign`
-- TestFlight自動アップロード: 無効
-- App Store Connect publishing: 未設定
+Codemagic側では `ios-build-check` を手動実行してください。
 
-TestFlightへ自動アップロードする場合は、Bundle ID、App Store Connect API Key、iOS code signing の準備後に publishing 設定を追加します。
+## 9. 次にユーザー側でやること
+
+1. Apple Developer Programに登録する
+2. 本番Bundle IDを決める
+3. App Store ConnectでTalkLogアプリを作る
+4. App Store Connect API Keyを作る
+5. CodemagicにGitHubリポジトリを接続する
+6. Codemagicの `talklog_app` グループへ環境変数を登録する
+7. Codemagicで `ios-build-check` を実行する
+
+ここまで終わったら、次に署名付きIPA作成workflowを追加できます。

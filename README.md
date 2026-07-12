@@ -121,6 +121,7 @@ npx supabase@latest secrets set OPENAI_API_KEY=YOUR_OPENAI_API_KEY --project-ref
 Codemagic を使った iOS/TestFlight 準備手順は以下を参照してください。
 
 - `docs/ios_testflight_codemagic.md`
+- `docs/ios_release_todo.md`
 
 ## 検証コマンド
 
