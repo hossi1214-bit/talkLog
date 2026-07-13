@@ -1,5 +1,5 @@
 name: talklog
-description: "A new Flutter project."
+description: "TalkLog is a speaking practice log app that records your voice and supports AI feedback."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
