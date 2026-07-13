@@ -33,6 +33,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
   final _correctionRepository = CorrectionRepository();
   bool _isPlaying = false;
   bool _isDeleting = false;
+  bool _showCorrection = false;
   late Future<_RecordingCloudStatus> _statusFuture;
 
   @override
@@ -80,6 +81,13 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showCorrection) {
+      return CorrectionResultPage(
+        entry: widget.entry,
+        onClose: _closeCorrectionResult,
+      );
+    }
+
     final entry = widget.entry;
 
     return Scaffold(
@@ -161,16 +169,17 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
   }
 
   void _openCorrectionResult() {
-    Navigator.of(context)
-        .push(
-          MaterialPageRoute(
-            builder: (context) => CorrectionResultPage(entry: widget.entry),
-          ),
-        )
-        .then((_) {
-          _reloadStatus();
-          widget.onChanged?.call();
-        });
+    setState(() {
+      _showCorrection = true;
+    });
+  }
+
+  void _closeCorrectionResult() {
+    setState(() {
+      _showCorrection = false;
+    });
+    _reloadStatus();
+    widget.onChanged?.call();
   }
 
   Future<void> _togglePlayback() async {

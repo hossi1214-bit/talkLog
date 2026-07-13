@@ -7,9 +7,10 @@ import 'repositories/correction_repository.dart';
 import 'services/edge_function_correction_service.dart';
 
 class CorrectionResultPage extends StatefulWidget {
-  const CorrectionResultPage({required this.entry, super.key});
+  const CorrectionResultPage({required this.entry, this.onClose, super.key});
 
   final RecordEntry entry;
+  final VoidCallback? onClose;
 
   @override
   State<CorrectionResultPage> createState() => _CorrectionResultPageState();
@@ -108,6 +109,13 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onClose == null
+            ? null
+            : IconButton(
+                tooltip: '録音詳細へ戻る',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onClose,
+              ),
         title: const Text('AI添削'),
         actions: [
           IconButton(
@@ -123,7 +131,7 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
           if (snapshot.hasError) {
             return _CorrectionErrorView(
               message: _friendlyError(snapshot.error!),
-              onClose: () => Navigator.of(context).maybePop(),
+              onClose: widget.onClose ?? () => Navigator.of(context).maybePop(),
             );
           }
           if (!snapshot.hasData) {
