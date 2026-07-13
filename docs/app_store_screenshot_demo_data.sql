@@ -1,10 +1,15 @@
-﻿-- TalkLog screenshot demo data
+-- TalkLog screenshot demo data
 -- Supabase SQL Editorで実行します。
 -- 1) 先にアプリから撮影用ユーザーでメール登録/ログインしてください。
 -- 2) v_email を撮影用ユーザーのメールアドレスに変更してください。
 -- 3) 実行すると、そのユーザーにスクショ用デモデータを作成します。
 
 begin;
+
+-- Existing projects may not have the latest vocabulary review columns yet.
+alter table public.vocabulary
+  add column if not exists review_count integer not null default 0 check (review_count >= 0),
+  add column if not exists last_reviewed_at timestamptz;
 
 do $$
 declare

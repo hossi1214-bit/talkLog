@@ -44,6 +44,8 @@ v_email text := 'screenshot-test@example.com';
 
 その後、SQL全体を実行します。
 
+SQLの先頭で `vocabulary.review_count` と `vocabulary.last_reviewed_at` が無い場合は自動追加します。`review_count` が無いというエラーが出た場合も、最新版の `docs/app_store_screenshot_demo_data.sql` をそのまま再実行してください。
+
 ## 作成されるデータ
 
 - 撮影用ユーザーの `role` を `TESTER` に変更

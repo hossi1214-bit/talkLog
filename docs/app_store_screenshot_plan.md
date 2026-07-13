@@ -1,4 +1,4 @@
-﻿# App Store Screenshot Plan
+# App Store Screenshot Plan
 
 TalkLogのApp Store / TestFlight向けスクリーンショット準備メモです。
 
