@@ -199,6 +199,9 @@ class SupabaseRecordingRepository implements RecordingRepository {
     required String? remoteAudioPath,
     required String? localAudioPath,
   }) async {
+    if (localAudioPath == 'screenshot-demo') {
+      return localAudioPath;
+    }
     if (localAudioPath != null && await File(localAudioPath).exists()) {
       return localAudioPath;
     }
