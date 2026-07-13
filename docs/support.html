@@ -1,0 +1,76 @@
+﻿<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TalkLog サポート</title>
+  <style>
+    :root {
+      --ink: #1f2937;
+      --muted: #5f6b7a;
+      --line: #d8dee8;
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --accent: #49639f;
+    }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.75;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+    article {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 32px;
+    }
+    h1, h2 { line-height: 1.35; }
+    h1 { margin: 0 0 8px; font-size: 2rem; }
+    h2 { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 1.25rem; }
+    .lead, .muted { color: var(--muted); }
+    a { color: var(--accent); }
+    code { background: #eef2f7; padding: 2px 5px; border-radius: 4px; }
+    footer { margin-top: 24px; color: var(--muted); font-size: 0.9rem; }
+    @media (max-width: 640px) {
+      main { padding: 20px 12px 40px; }
+      article { padding: 22px 18px; }
+      h1 { font-size: 1.65rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <article>
+      <h1>TalkLog サポート</h1>
+      <p class="lead">TalkLogに関するお問い合わせ、不具合報告、データ削除依頼の窓口です。</p>
+
+      <h2>お問い合わせ</h2>
+      <p>サポートメールアドレスはリリース前に確定し、このページに掲載します。</p>
+      <p class="muted">現在の仮表記: <code>YOUR_SUPPORT_EMAIL</code></p>
+
+      <h2>お問い合わせ時に書いてほしい内容</h2>
+      <ul>
+        <li>利用端末とOSバージョン</li>
+        <li>アプリのバージョン</li>
+        <li>発生した画面</li>
+        <li>操作手順</li>
+        <li>表示されたエラーメッセージ</li>
+      </ul>
+
+      <h2>データ削除について</h2>
+      <p>録音履歴はアプリ内の履歴画面から削除できます。アカウントに紐づくデータ削除が必要な場合は、サポート窓口へご連絡ください。</p>
+
+      <h2>プライバシーポリシー</h2>
+      <p><a href="./privacy.html">TalkLog プライバシーポリシー</a></p>
+    </article>
+    <footer>© 2026 TalkLog</footer>
+  </main>
+</body>
+</html>

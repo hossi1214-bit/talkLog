@@ -1,4 +1,4 @@
-﻿# TalkLog
+# TalkLog
 
 TalkLogは、録音したスピーキング練習を保存し、履歴・学習進捗・AI添削につなげるFlutterアプリです。
 
@@ -131,6 +131,8 @@ App Store掲載・審査準備:
 - `docs/app_store_metadata.md`
 - `docs/app_privacy_answers.md`
 - `docs/privacy_policy_draft.md`
+- `docs/privacy.html`
+- `docs/support.html`
 - `docs/testflight_review_notes.md`
 
 ## 検証コマンド

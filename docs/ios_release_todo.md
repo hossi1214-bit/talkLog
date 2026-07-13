@@ -56,3 +56,14 @@ com.example.talklog
 ```
 
 `com.example.talklog` はリリース用には変更推奨です。
+
+## GitHub Pages公開候補
+
+GitHub Pagesを `docs/` から公開する場合、App Store Connectには以下を入力できます。
+
+```text
+Privacy Policy URL: https://hossi1214-bit.github.io/talkLog/privacy.html
+Support URL: https://hossi1214-bit.github.io/talkLog/support.html
+```
+
+公開前にGitHubリポジトリの Settings > Pages で、Sourceを `Deploy from a branch`、Branchを `main`、Folderを `/docs` に設定してください。
