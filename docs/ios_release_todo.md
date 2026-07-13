@@ -1,4 +1,4 @@
-﻿# iOS Release TODO
+# iOS Release TODO
 
 TalkLogをTestFlightへ出すまでのTODOです。
 
@@ -56,6 +56,12 @@ com.example.talklog
 ```
 
 `com.example.talklog` はリリース用には変更推奨です。
+
+## テスター運用メモ
+
+TestFlightテスターのアカウント登録と `TESTER` 権限付与は以下を参照します。
+
+- `docs/tester_account_operations.md`
 
 ## GitHub Pages公開候補
 
