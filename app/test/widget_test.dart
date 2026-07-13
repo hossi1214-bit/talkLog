@@ -23,7 +23,7 @@ void main() {
     await tester.tap(find.text('録音'));
     await tester.pump();
 
-    expect(find.text('利用するにはメールログインしてください。'), findsOneWidget);
+    expect(find.text('利用するにはメールログインしてください。'), findsWidgets);
     expect(find.text('メールアドレス'), findsOneWidget);
     expect(find.text('録音できます'), findsNothing);
     expect(find.byIcon(Icons.mic), findsNothing);

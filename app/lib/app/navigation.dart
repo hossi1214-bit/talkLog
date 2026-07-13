@@ -20,6 +20,7 @@ class AppNavigation extends StatefulWidget {
 }
 
 class _AppNavigationState extends State<AppNavigation> {
+  static const _recordIndex = 1;
   static const _settingsIndex = 5;
 
   final _authSessionService = AuthSessionService.instance;
@@ -57,12 +58,24 @@ class _AppNavigationState extends State<AppNavigation> {
   Future<void> _initializeForCurrentSession() async {
     await _authSessionService.initializeSession();
     await _loadDataForLoggedInUser();
+    if (!mounted) {
+      return;
+    }
+    if (_isLoggedIn) {
+      setState(() {
+        _currentIndex = _recordIndex;
+      });
+    }
   }
 
   void _handleAuthChanged() {
     if (!_isLoggedIn && _currentIndex != _settingsIndex) {
       setState(() {
         _currentIndex = _settingsIndex;
+      });
+    } else if (_isLoggedIn && _currentIndex == _settingsIndex) {
+      setState(() {
+        _currentIndex = _recordIndex;
       });
     } else if (mounted) {
       setState(() {});
@@ -94,7 +107,7 @@ class _AppNavigationState extends State<AppNavigation> {
       return;
     }
     setState(() {
-      _currentIndex = 1;
+      _currentIndex = _recordIndex;
     });
   }
 
@@ -102,6 +115,14 @@ class _AppNavigationState extends State<AppNavigation> {
     setState(() {
       _currentIndex = _settingsIndex;
     });
+  }
+
+  void _showLoginRequiredMessage() {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.removeCurrentSnackBar();
+    messenger.showSnackBar(
+      const SnackBar(content: Text('利用するにはメールログインしてください。')),
+    );
   }
 
   static const _items = [
@@ -130,9 +151,7 @@ class _AppNavigationState extends State<AppNavigation> {
             setState(() {
               _currentIndex = _settingsIndex;
             });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('利用するにはメールログインしてください。')),
-            );
+            _showLoginRequiredMessage();
             return;
           }
           setState(() {
