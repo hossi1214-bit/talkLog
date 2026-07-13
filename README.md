@@ -134,6 +134,7 @@ App Store掲載・審査準備:
 - `docs/privacy.html`
 - `docs/support.html`
 - `docs/testflight_review_notes.md`
+- `docs/app_store_screenshot_plan.md`
 
 ## 検証コマンド
 
