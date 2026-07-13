@@ -10,8 +10,8 @@ class AppSettingsStore extends ChangeNotifier {
   static final AppSettingsStore instance = AppSettingsStore._();
 
   static const supportedLanguages = [
-    'スペイン語',
     '英語',
+    'スペイン語',
     'フランス語',
     'ドイツ語',
     'イタリア語',
@@ -19,7 +19,7 @@ class AppSettingsStore extends ChangeNotifier {
     '中国語',
   ];
   static const _languageKey = 'learning_language';
-  static const _defaultLanguage = 'スペイン語';
+  static const _defaultLanguage = '英語';
 
   bool _isLoaded = false;
   bool _isCloudSyncing = false;

@@ -20,12 +20,12 @@ class VocabularyRepository {
         ? await client
               .from('vocabulary')
               .select()
-              .order('created_at', ascending: false)
+              .order('word', ascending: true)
         : await client
               .from('vocabulary')
               .select()
               .eq('language', language)
-              .order('created_at', ascending: false);
+              .order('word', ascending: true);
 
     return rows
         .map((row) => VocabularyItem.fromJson(Map<String, dynamic>.from(row)))

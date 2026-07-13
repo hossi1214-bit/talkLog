@@ -164,6 +164,9 @@ class _VocabularyPageState extends State<VocabularyPage> {
   }
 
   void _nextReview(int itemCount) {
+    if (itemCount == 0) {
+      return;
+    }
     setState(() {
       _reviewIndex = (_reviewIndex + 1) % itemCount;
       _isMeaningVisible = false;
@@ -174,6 +177,18 @@ class _VocabularyPageState extends State<VocabularyPage> {
     _isReviewMode = false;
     _isMeaningVisible = false;
     _reviewIndex = 0;
+  }
+
+  List<VocabularyItem> _sortByWord(Iterable<VocabularyItem> items) {
+    final sorted = items.toList(growable: false);
+    sorted.sort((a, b) {
+      final wordCompare = a.word.toLowerCase().compareTo(b.word.toLowerCase());
+      if (wordCompare != 0) {
+        return wordCompare;
+      }
+      return a.createdAt.compareTo(b.createdAt);
+    });
+    return sorted;
   }
 
   @override
@@ -196,18 +211,20 @@ class _VocabularyPageState extends State<VocabularyPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final allItems = snapshot.data!;
-          final visibleItems = allItems
-              .where((item) => _showReviewed || !item.isReviewed)
-              .toList(growable: false);
-          final reviewItems = allItems
-              .where((item) => !item.isReviewed)
-              .toList(growable: false);
+          final allItems = _sortByWord(snapshot.data!);
+          final visibleItems = _sortByWord(
+            allItems.where((item) => _showReviewed || !item.isReviewed),
+          );
+          final reviewItems = _sortByWord(
+            allItems.where((item) => !item.isReviewed),
+          );
 
           if (_isReviewMode) {
             return _ReviewModeView(
               items: reviewItems,
-              index: _reviewIndex.clamp(0, reviewItems.length - 1),
+              index: reviewItems.isEmpty
+                  ? 0
+                  : _reviewIndex.clamp(0, reviewItems.length - 1),
               isMeaningVisible: _isMeaningVisible,
               onClose: _closeReview,
               onShowMeaning: _showMeaning,
@@ -254,54 +271,191 @@ class _VocabularyPageState extends State<VocabularyPage> {
                 )
               else
                 for (final item in visibleItems)
-                  Card(
-                    child: ListTile(
-                      leading: Checkbox(
-                        value: item.isReviewed,
-                        onChanged: (value) =>
-                            _setReviewed(item, value ?? false),
-                      ),
-                      title: Text(item.word),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item.meaning),
-                          const SizedBox(height: 4),
-                          Text(
-                            item.language,
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                          if (item.example != null && item.example!.isNotEmpty)
-                            Text(item.example!),
-                        ],
-                      ),
-                      trailing: PopupMenuButton<_VocabularyAction>(
-                        tooltip: 'その他',
-                        onSelected: (action) {
-                          switch (action) {
-                            case _VocabularyAction.edit:
-                              _editItem(item);
-                            case _VocabularyAction.delete:
-                              _confirmAndDeleteItem(item);
-                          }
-                        },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem(
-                            value: _VocabularyAction.edit,
-                            child: Text('編集'),
-                          ),
-                          PopupMenuItem(
-                            value: _VocabularyAction.delete,
-                            child: Text('削除'),
-                          ),
-                        ],
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _VocabularyFlipCard(
+                      item: item,
+                      onReviewedChanged: (value) =>
+                          _setReviewed(item, value ?? false),
+                      onEdit: () => _editItem(item),
+                      onDelete: () => _confirmAndDeleteItem(item),
                     ),
                   ),
             ],
           );
         },
       ),
+    );
+  }
+}
+
+class _VocabularyFlipCard extends StatefulWidget {
+  const _VocabularyFlipCard({
+    required this.item,
+    required this.onReviewedChanged,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final VocabularyItem item;
+  final ValueChanged<bool?> onReviewedChanged;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  State<_VocabularyFlipCard> createState() => _VocabularyFlipCardState();
+}
+
+class _VocabularyFlipCardState extends State<_VocabularyFlipCard> {
+  bool _showBack = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _showBack = !_showBack;
+          });
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Checkbox(
+                    value: widget.item.isReviewed,
+                    onChanged: widget.onReviewedChanged,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      widget.item.language,
+                      style: theme.textTheme.labelMedium,
+                    ),
+                  ),
+                  _ReviewMeta(item: widget.item),
+                  PopupMenuButton<_VocabularyAction>(
+                    tooltip: 'その他',
+                    onSelected: (action) {
+                      switch (action) {
+                        case _VocabularyAction.edit:
+                          widget.onEdit();
+                        case _VocabularyAction.delete:
+                          widget.onDelete();
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: _VocabularyAction.edit,
+                        child: Text('編集'),
+                      ),
+                      PopupMenuItem(
+                        value: _VocabularyAction.delete,
+                        child: Text('削除'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SizeTransition(sizeFactor: animation, child: child),
+                ),
+                child: _showBack
+                    ? _VocabularyCardBack(
+                        key: ValueKey('${widget.item.id}-back'),
+                        item: widget.item,
+                      )
+                    : _VocabularyCardFront(
+                        key: ValueKey('${widget.item.id}-front'),
+                        item: widget.item,
+                        accentColor: colorScheme.primary,
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VocabularyCardFront extends StatelessWidget {
+  const _VocabularyCardFront({
+    super.key,
+    required this.item,
+    required this.accentColor,
+  });
+
+  final VocabularyItem item;
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          '単語',
+          style: theme.textTheme.labelLarge?.copyWith(color: accentColor),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          item.word,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'タップで解説を表示',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+class _VocabularyCardBack extends StatelessWidget {
+  const _VocabularyCardBack({super.key, required this.item});
+
+  final VocabularyItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('解説', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 8),
+        Text(item.meaning, style: theme.textTheme.bodyLarge),
+        if (item.example != null && item.example!.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Text('例文', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 6),
+          Text(item.example!, style: theme.textTheme.bodyMedium),
+        ],
+        const SizedBox(height: 12),
+        Text(
+          'タップで単語に戻る',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
     );
   }
 }
@@ -579,7 +733,7 @@ class _VocabularyEditDialogState extends State<_VocabularyEditDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _meaningController,
-              decoration: const InputDecoration(labelText: '意味'),
+              decoration: const InputDecoration(labelText: '意味・解説'),
               minLines: 1,
               maxLines: 3,
             ),

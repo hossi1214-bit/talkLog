@@ -87,7 +87,7 @@ class RecordController extends ChangeNotifier {
       _isRecording = true;
       _startTimer();
     } on RecordPermissionException {
-      _errorMessage = '録音にはマイクの許可が必要です。Androidのアプリ情報からマイクを許可してください。';
+      _errorMessage = '録音にはマイクの許可が必要です。端末のアプリ設定からマイクを許可してください。';
     } on RecordStartException catch (error) {
       _errorMessage = '録音を開始できませんでした: ${_friendlyError(error.message)}';
     } catch (error) {

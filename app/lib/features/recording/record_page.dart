@@ -45,9 +45,12 @@ class _RecordPageState extends State<RecordPage> {
   }
 
   Future<void> _createSpeakingDraft() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
     final intent = _intentController.text.trim();
     if (intent.isEmpty) {
       setState(() {
+        _draftText = null;
         _draftError = '日本語で言いたいことを入力してください。';
       });
       return;
@@ -55,6 +58,7 @@ class _RecordPageState extends State<RecordPage> {
 
     setState(() {
       _isCreatingDraft = true;
+      _draftText = null;
       _draftError = null;
     });
 
@@ -86,6 +90,7 @@ class _RecordPageState extends State<RecordPage> {
   }
 
   void _clearDraft() {
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _intentController.clear();
       _draftText = null;
@@ -95,106 +100,117 @@ class _RecordPageState extends State<RecordPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('録音')),
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          return SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 380),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        _controller.isBusy
-                            ? '処理中です'
-                            : _controller.isRecording
-                            ? '録音中'
-                            : '録音できます',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      if (_controller.errorMessage != null) ...[
-                        const SizedBox(height: 12),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: Scaffold(
+        appBar: AppBar(title: const Text('録音')),
+        body: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            return SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.fromLTRB(
+                    24,
+                    24,
+                    24,
+                    24 + MediaQuery.viewInsetsOf(context).bottom,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 380),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
                         Text(
-                          _controller.errorMessage!,
+                          _controller.isBusy
+                              ? '処理中です'
+                              : _controller.isRecording
+                              ? '録音中'
+                              : '録音できます',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
+                          style: Theme.of(context).textTheme.headlineSmall,
                         ),
-                      ],
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 240),
-                        child: _controller.isRecording
-                            ? const _TalkingImage()
-                            : const SizedBox(height: 20),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        _formatDuration(_controller.elapsed),
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.displayMedium
-                            ?.copyWith(
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
+                        if (_controller.errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _controller.errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
                             ),
-                      ),
-                      const SizedBox(height: 36),
-                      RecordButton(
-                        isRecording: _controller.isRecording,
-                        isBusy: _controller.isBusy,
-                        onPressed: _controller.toggleRecording,
-                      ),
-                      if (_controller.isRecording) ...[
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.close),
-                          label: const Text('録音をキャンセル'),
-                          onPressed: _controller.isBusy
-                              ? null
-                              : _controller.cancelRecording,
+                          ),
+                        ],
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 240),
+                          child: _controller.isRecording
+                              ? const _TalkingImage()
+                              : const SizedBox(height: 20),
                         ),
+                        const SizedBox(height: 20),
+                        Text(
+                          _formatDuration(_controller.elapsed),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.displayMedium
+                              ?.copyWith(
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
+                              ),
+                        ),
+                        const SizedBox(height: 36),
+                        RecordButton(
+                          isRecording: _controller.isRecording,
+                          isBusy: _controller.isBusy,
+                          onPressed: _controller.toggleRecording,
+                        ),
+                        if (_controller.isRecording) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.close),
+                            label: const Text('録音をキャンセル'),
+                            onPressed: _controller.isBusy
+                                ? null
+                                : _controller.cancelRecording,
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        _SpeakingDraftPanel(
+                          controller: _intentController,
+                          language: _controller.learningLanguage,
+                          draftText: _draftText,
+                          errorText: _draftError,
+                          isLoading: _isCreatingDraft,
+                          onCreate: _isCreatingDraft
+                              ? null
+                              : _createSpeakingDraft,
+                          onClear: _clearDraft,
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          _controller.isBusy
+                              ? '少しお待ちください'
+                              : _controller.isRecording
+                              ? '練習文を見ながら話して、停止で保存します'
+                              : 'タップして録音開始',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                        const SizedBox(height: 28),
+                        _LanguageChip(label: _controller.learningLanguage),
+                        const SizedBox(height: 16),
+                        SyncStatusBanner(store: _recordingStore),
                       ],
-                      const SizedBox(height: 20),
-                      _SpeakingDraftPanel(
-                        controller: _intentController,
-                        language: _controller.learningLanguage,
-                        draftText: _draftText,
-                        errorText: _draftError,
-                        isLoading: _isCreatingDraft,
-                        onCreate: _isCreatingDraft
-                            ? null
-                            : _createSpeakingDraft,
-                        onClear: _clearDraft,
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        _controller.isBusy
-                            ? '少しお待ちください'
-                            : _controller.isRecording
-                            ? '文章を見ながら話して、停止で保存します'
-                            : 'タップして録音開始',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                      const SizedBox(height: 28),
-                      _LanguageChip(label: _controller.learningLanguage),
-                      const SizedBox(height: 16),
-                      SyncStatusBanner(store: _recordingStore),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -264,11 +280,20 @@ class _SpeakingDraftPanel extends StatelessWidget {
               maxLines: 4,
               maxLength: 500,
               keyboardType: TextInputType.multiline,
-              textInputAction: TextInputAction.newline,
-              decoration: const InputDecoration(
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+              onTapOutside: (_) =>
+                  FocusManager.instance.primaryFocus?.unfocus(),
+              decoration: InputDecoration(
                 labelText: '言いたいこと（日本語）',
                 hintText: '例: 今日は仕事で疲れたけど、英語の練習を続けたい',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  tooltip: 'キーボードを閉じる',
+                  icon: const Icon(Icons.keyboard_hide_outlined),
+                  onPressed: () =>
+                      FocusManager.instance.primaryFocus?.unfocus(),
+                ),
               ),
             ),
             const SizedBox(height: 8),
