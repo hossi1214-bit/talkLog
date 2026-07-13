@@ -31,3 +31,49 @@ workflows:
             --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
     artifacts:
       - app/build/ios/iphoneos/Runner.app
+
+  ios-testflight-build:
+    name: iOS TestFlight build
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      groups:
+        - talklog_app
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: jp.hossi1214.talklog
+    scripts:
+      - name: Show tool versions
+        script: |
+          flutter --version
+          xcodebuild -version
+      - name: Get Flutter packages
+        script: |
+          cd app
+          flutter pub get
+      - name: Analyze and test
+        script: |
+          cd app
+          flutter analyze
+          flutter test
+      - name: Set up code signing settings on Xcode project
+        script: |
+          cd app
+          xcode-project use-profiles
+      - name: Build signed IPA
+        script: |
+          cd app
+          flutter build ipa --release \
+            --dart-define=SUPABASE_URL=$SUPABASE_URL \
+            --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+    artifacts:
+      - app/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
