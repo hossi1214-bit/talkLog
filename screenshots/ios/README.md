@@ -1,4 +1,4 @@
-﻿# iOS Screenshot Inventory
+# iOS Screenshot Inventory
 
 撮影済みスクリーンショット01〜08の管理メモです。
 
@@ -12,18 +12,18 @@ screenshots/ios/
 
 | No | ファイル | 現在サイズ | 用途 |
 |---:|---|---:|---|
-| 1 | `01-home-progress.png` | 255 x 546 | 構図確認用 |
-| 2 | `02-recording-helper.png` | 255 x 546 | 構図確認用 |
-| 3 | `03-history.png` | 255 x 546 | 構図確認用 |
-| 4 | `04-ai-feedback.png` | 256 x 546 | 構図確認用 |
-| 5 | `05-word-ranking.png` | 256 x 546 | 構図確認用 |
-| 6 | `06-premium.png` | 258 x 505 | 構図確認用 |
-| 7 | `07-language-settings.png` | 256 x 548 | 構図確認用 |
-| 8 | `08-vocabulary.png` | 258 x 540 | 構図確認用 |
+| 1 | `01-home-progress.png` | 1320 x 2868 | 提出候補 |
+| 2 | `02-recording-helper.png` | 1320 x 2868 | 提出候補 |
+| 3 | `03-history.png` | 1320 x 2868 | 提出候補 |
+| 4 | `04-ai-feedback.png` | 1320 x 2868 | 提出候補 |
+| 5 | `05-word-ranking.png` | 1320 x 2868 | 提出候補 |
+| 6 | `06-premium.png` | 1320 x 2868 | 提出候補 |
+| 7 | `07-language-settings.png` | 1320 x 2868 | 提出候補 |
+| 8 | `08-vocabulary.png` | 1320 x 2868 | 提出候補 |
 
 ## 注意
 
-現在の画像はApp Store Connectへそのまま提出するには小さい可能性が高いため、最終提出前に高解像度のiPhoneスクリーンショットとして再撮影または調整します。
+現在の画像はApp Store Connect提出候補として 1320 x 2868 px に統一済みです。
 
 初回リリース用の構成は01〜08で確定し、09〜10は任意の追加候補として扱います。
 
