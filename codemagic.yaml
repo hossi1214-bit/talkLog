@@ -67,6 +67,7 @@ workflows:
         script: |
           cd app
           flutter build ipa --release \
+            --export-options-plist=$HOME/export_options.plist \
             --dart-define=SUPABASE_URL=$SUPABASE_URL \
             --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
     artifacts:
