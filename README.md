@@ -135,6 +135,9 @@ App Store掲載・審査準備:
 - `docs/support.html`
 - `docs/testflight_review_notes.md`
 - `docs/app_store_screenshot_plan.md`
+- `docs/app_store_screenshot_checklist.csv`
+- `docs/app_store_screenshot_demo_data.md`
+- `docs/app_store_screenshot_demo_data.sql`
 
 ## 検証コマンド
 
