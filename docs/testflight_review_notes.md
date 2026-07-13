@@ -1,4 +1,4 @@
-﻿# TestFlight Review Notes Draft
+# TestFlight Review Notes Draft
 
 TestFlight審査、内部テスター、外部テスター向けの説明下書きです。
 
@@ -42,7 +42,7 @@ AI添削機能では、録音音声をSupabase Edge Functions経由でOpenAI API
 ## Test Account Template
 
 ```text
-Email: REVIEW_TEST_EMAIL
+Email: screenshot-test@example.com
 Password: REVIEW_TEST_PASSWORD
 ```
 
@@ -51,7 +51,7 @@ Password: REVIEW_TEST_PASSWORD
 ```sql
 update public.profiles
 set role = 'TESTER'
-where email = 'REVIEW_TEST_EMAIL';
+where email = 'screenshot-test@example.com';
 ```
 
 ## Internal Tester Checklist
