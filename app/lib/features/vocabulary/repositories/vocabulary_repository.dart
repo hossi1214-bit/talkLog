@@ -29,8 +29,10 @@ class VocabularyRepository {
 
     final items = rows
         .map((row) => VocabularyItem.fromJson(Map<String, dynamic>.from(row)))
-        .map(_normalizeStoredItem);
-    return _dedupeItems(items);
+        .map(_normalizeStoredItem)
+        .toList(growable: false);
+    final restoredItems = await _restoreMeaningsFromFeedback(items);
+    return _dedupeItems(restoredItems);
   }
 
   Future<void> addFromNotes({
@@ -42,9 +44,11 @@ class VocabularyRepository {
       return;
     }
 
-    final existingKeys = (await fetchAll(
-      language: entry.language,
-    )).map((item) => _vocabularyKey(item.language, item.word)).toSet();
+    final existingItems = await fetchAll(language: entry.language);
+    final existingByKey = {
+      for (final item in existingItems)
+        _vocabularyKey(item.language, item.word): item,
+    };
     final newKeys = <String>{};
 
     for (final note in notes) {
@@ -54,7 +58,20 @@ class VocabularyRepository {
       }
 
       final key = _vocabularyKey(entry.language, parsed.word);
-      if (existingKeys.contains(key) || newKeys.contains(key)) {
+      final existing = existingByKey[key];
+      if (existing != null) {
+        if (_hasFallbackMeaning(existing) &&
+            !_isFallbackMeaning(parsed.meaning)) {
+          await updateItem(
+            item: existing,
+            word: existing.word,
+            meaning: parsed.meaning,
+            example: existing.example,
+          );
+        }
+        continue;
+      }
+      if (newKeys.contains(key)) {
         continue;
       }
       newKeys.add(key);
@@ -129,6 +146,90 @@ class VocabularyRepository {
     return message.contains('review_count') ||
         message.contains('last_reviewed_at') ||
         message.contains('column');
+  }
+
+  Future<List<VocabularyItem>> _restoreMeaningsFromFeedback(
+    List<VocabularyItem> items,
+  ) async {
+    final client = _client;
+    if (client == null || !items.any(_hasFallbackMeaning)) {
+      return items;
+    }
+
+    final recordingIds = items
+        .where(_hasFallbackMeaning)
+        .map((item) => item.recordingId)
+        .toSet()
+        .toList(growable: false);
+    if (recordingIds.isEmpty) {
+      return items;
+    }
+
+    try {
+      final rows = await client
+          .from('feedbacks')
+          .select('recording_id, vocabulary_feedback')
+          .inFilter('recording_id', recordingIds);
+      final notesByRecordingId = <String, List<String>>{};
+      for (final row in rows) {
+        final data = Map<String, dynamic>.from(row);
+        final recordingId = data['recording_id'] as String?;
+        if (recordingId == null) {
+          continue;
+        }
+        notesByRecordingId[recordingId] = _stringList(
+          data['vocabulary_feedback'],
+        );
+      }
+
+      return items
+          .map((item) => _restoreMeaningFromNotes(item, notesByRecordingId))
+          .toList(growable: false);
+    } on PostgrestException {
+      return items;
+    }
+  }
+
+  VocabularyItem _restoreMeaningFromNotes(
+    VocabularyItem item,
+    Map<String, List<String>> notesByRecordingId,
+  ) {
+    if (!_hasFallbackMeaning(item)) {
+      return item;
+    }
+
+    final notes = notesByRecordingId[item.recordingId] ?? const <String>[];
+    for (final note in notes) {
+      final parsed = _parseStructuredNote(note.trim());
+      if (parsed == null || _isFallbackMeaning(parsed.meaning)) {
+        continue;
+      }
+      if (_vocabularyKey(item.language, parsed.word) !=
+          _vocabularyKey(item.language, item.word)) {
+        continue;
+      }
+      return VocabularyItem(
+        id: item.id,
+        recordingId: item.recordingId,
+        language: item.language,
+        word: item.word,
+        meaning: parsed.meaning,
+        example: item.example,
+        isReviewed: item.isReviewed,
+        reviewCount: item.reviewCount,
+        lastReviewedAt: item.lastReviewedAt,
+        createdAt: item.createdAt,
+      );
+    }
+
+    return item;
+  }
+
+  List<String> _stringList(Object? value) {
+    if (value is List) {
+      return value.map((item) => item.toString()).toList(growable: false);
+    }
+    return const [];
   }
 
   _ParsedVocabulary? _parseNote(String note) {
@@ -283,6 +384,17 @@ class VocabularyRepository {
 
   String _normalizeWord(String value) {
     return _cleanHeadword(value).toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  bool _hasFallbackMeaning(VocabularyItem item) {
+    return _isFallbackMeaning(item.meaning);
+  }
+
+  bool _isFallbackMeaning(String value) {
+    final normalized = value.trim();
+    return normalized.isEmpty ||
+        normalized == '添削結果から追加' ||
+        normalized == '添削メモから追加';
   }
 
   String _cleanHeadword(String value) {

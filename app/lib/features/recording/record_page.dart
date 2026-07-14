@@ -161,7 +161,19 @@ class _RecordPageState extends State<RecordPage> {
                                 ],
                               ),
                         ),
-                        const SizedBox(height: 36),
+                        const SizedBox(height: 24),
+                        _SpeakingDraftPanel(
+                          controller: _intentController,
+                          language: _controller.learningLanguage,
+                          draftText: _draftText,
+                          errorText: _draftError,
+                          isLoading: _isCreatingDraft,
+                          onCreate: _isCreatingDraft
+                              ? null
+                              : _createSpeakingDraft,
+                          onClear: _clearDraft,
+                        ),
+                        const SizedBox(height: 24),
                         RecordButton(
                           isRecording: _controller.isRecording,
                           isBusy: _controller.isBusy,
@@ -177,18 +189,6 @@ class _RecordPageState extends State<RecordPage> {
                                 : _controller.cancelRecording,
                           ),
                         ],
-                        const SizedBox(height: 20),
-                        _SpeakingDraftPanel(
-                          controller: _intentController,
-                          language: _controller.learningLanguage,
-                          draftText: _draftText,
-                          errorText: _draftError,
-                          isLoading: _isCreatingDraft,
-                          onCreate: _isCreatingDraft
-                              ? null
-                              : _createSpeakingDraft,
-                          onClear: _clearDraft,
-                        ),
                         const SizedBox(height: 20),
                         Text(
                           _controller.isBusy
@@ -274,6 +274,50 @@ class _SpeakingDraftPanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
+            if (draftText != null && draftText!.isNotEmpty) ...[
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.45),
+                  border: Border.all(color: colorScheme.primaryContainer),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.record_voice_over_outlined,
+                            size: 18,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text('見ながら話す文', style: theme.textTheme.labelLarge),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: 'クリア',
+                            icon: const Icon(Icons.close),
+                            onPressed: onClear,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      SelectableText(
+                        draftText!,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          height: 1.45,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             TextField(
               controller: controller,
               minLines: 2,
@@ -310,38 +354,6 @@ class _SpeakingDraftPanel extends StatelessWidget {
             if (errorText != null) ...[
               const SizedBox(height: 10),
               Text(errorText!, style: TextStyle(color: colorScheme.error)),
-            ],
-            if (draftText != null && draftText!.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text('読み上げメモ', style: theme.textTheme.labelLarge),
-                      const SizedBox(height: 6),
-                      SelectableText(
-                        draftText!,
-                        style: theme.textTheme.bodyLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          icon: const Icon(Icons.delete_outline),
-                          label: const Text('クリア'),
-                          onPressed: onClear,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             ],
           ],
         ),

@@ -106,16 +106,62 @@ async function createDraft({
     }),
   });
 
-  const payload = await response.json().catch(() => null) as { output_text?: string; error?: { message?: string } } | null;
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok) {
-    throw new Error(payload?.error?.message ?? `OpenAI draft failed: ${response.status}`);
+    throw new Error(errorMessageFromOpenAi(payload) ?? `OpenAI draft failed: ${response.status}`);
   }
 
-  const draft = payload?.output_text?.trim() ?? "";
+  const draft = extractOutputText(payload)?.trim() ?? "";
   if (!draft) {
     throw new Error("Draft response was empty");
   }
   return draft;
+}
+
+function extractOutputText(payload: Record<string, unknown> | null): string | null {
+  if (!payload) {
+    return null;
+  }
+  if (typeof payload.output_text === "string") {
+    return payload.output_text;
+  }
+
+  const output = payload.output;
+  if (!Array.isArray(output)) {
+    return null;
+  }
+
+  for (const item of output) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    const content = item.content;
+    if (!Array.isArray(content)) {
+      continue;
+    }
+    for (const contentItem of content) {
+      if (
+        isRecord(contentItem) &&
+        contentItem.type === "output_text" &&
+        typeof contentItem.text === "string"
+      ) {
+        return contentItem.text;
+      }
+    }
+  }
+  return null;
+}
+
+function errorMessageFromOpenAi(payload: Record<string, unknown> | null): string | null {
+  const error = payload?.error;
+  if (isRecord(error) && typeof error.message === "string") {
+    return error.message;
+  }
+  return null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function json(body: unknown, status = 200) {

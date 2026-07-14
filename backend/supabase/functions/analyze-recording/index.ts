@@ -238,6 +238,7 @@ async function createCorrection({
             `Learning language: ${language}`,
             `Transcript: ${transcript}`,
             "Please correct the utterance, suggest a more natural expression, translate it into Japanese, explain grammar and vocabulary points in Japanese, score it from 0 to 100, and add one encouraging comment in Japanese.",
+            "Each vocabularyNotes item must include both the target word or phrase and a Japanese explanation in this exact format: word or phrase: Japanese explanation. Do not return a word alone.",
           ].join("\n"),
         },
       ],
@@ -783,7 +784,11 @@ const correctionSchema = {
       type: "array",
       minItems: 1,
       maxItems: 4,
-      items: { type: "string" },
+      items: {
+        type: "string",
+        description:
+          "Format each item as 'word or phrase: Japanese explanation'. Never return only the word.",
+      },
     },
     score: { type: "integer", minimum: 0, maximum: 100 },
     encouragement: { type: "string" },
