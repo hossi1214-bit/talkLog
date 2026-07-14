@@ -226,13 +226,7 @@ class _VocabularyPageState extends State<VocabularyPage> {
     if (query.isEmpty) {
       return true;
     }
-    final target = [
-      item.word,
-      item.meaning,
-      item.example ?? '',
-      item.language,
-    ].join(' ').toLowerCase();
-    return target.contains(query);
+    return item.word.toLowerCase().startsWith(query);
   }
 
   @override
@@ -404,7 +398,7 @@ class _VocabularySearchAndSort extends StatelessWidget {
                         onPressed: onClearQuery,
                       ),
                 labelText: '単語帳を検索',
-                hintText: '単語・意味・例文で検索',
+                hintText: '先頭の文字で検索',
                 border: const OutlineInputBorder(),
               ),
               onChanged: onQueryChanged,
