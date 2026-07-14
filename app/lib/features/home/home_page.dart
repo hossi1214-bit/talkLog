@@ -166,7 +166,7 @@ class _AudioStorageCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(999),
               child: LinearProgressIndicator(
-                value: hasUnlimitedStorage ? null : usageRatio,
+                value: hasUnlimitedStorage ? 1.0 : usageRatio,
                 minHeight: 10,
                 backgroundColor: theme.colorScheme.surfaceContainerHighest,
               ),
