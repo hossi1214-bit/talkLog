@@ -29,6 +29,10 @@ type WordAdvice = {
   advice: string;
 };
 
+declare const EdgeRuntime: {
+  waitUntil(promise: Promise<unknown>): void;
+};
+
 const freeDailyAiCorrectionLimit = 5;
 
 const defaultLanguage = "スペイン語";
@@ -122,25 +126,24 @@ Deno.serve(async (request) => {
 
     await saveResult({ supabase, recordingId: body.recordingId, language, result });
 
-    let wordUsageWarning: string | null = null;
-    try {
-      await updateWordUsage({
+    EdgeRuntime.waitUntil(
+      updateWordUsage({
         supabase,
         userId: user.id,
         language,
         transcript: result.transcript,
         vocabularyNotes: result.vocabularyNotes,
         apiKey: openAiApiKey ?? undefined,
-      });
-    } catch (error) {
-      wordUsageWarning = error instanceof Error ? error.message : String(error);
-      console.warn(`Word usage update failed: ${wordUsageWarning}`);
-    }
+      }).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Word usage update failed: ${message}`);
+      }),
+    );
 
     return json({
       source: openAiApiKey ? "openai" : "demo",
       result,
-      wordUsageWarning,
+      wordUsageWarning: null,
     });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : String(error) }, 500);
