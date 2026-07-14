@@ -1,4 +1,4 @@
-﻿# Supabase Edge Functions Setup
+# Supabase Edge Functions Setup
 
 TalkLog の音声文字起こし・AI添削・練習文作成は、Flutter から直接 OpenAI API を呼ばず、Supabase Edge Functions 経由で実行します。
 
@@ -44,6 +44,15 @@ npx supabase@latest functions deploy create-speaking-draft --project-ref YOUR_PR
 
 `YOUR_PROJECT_REF` は Supabase Project URL の `https://xxxx.supabase.co` の `xxxx` 部分です。
 
+
+### talkLogプロジェクトへの再デプロイ例
+
+例文作成が「練習文を作成できませんでした」になる場合、`create-speaking-draft` が未デプロイの可能性があります。現在のSupabase Project Refでは以下を実行します。
+
+```powershell
+cd C:\flutter\talkLog\backend
+npx supabase@latest functions deploy create-speaking-draft --project-ref ddergburfzoymnpynlee
+```
 ## OpenAI APIキーの登録
 
 OpenAI APIキーは Flutter アプリや Git 管理ファイルには書かず、Supabase Secrets に登録します。
