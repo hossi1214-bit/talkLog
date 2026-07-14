@@ -27,9 +27,10 @@ class VocabularyRepository {
               .eq('language', language)
               .order('word', ascending: true);
 
-    return rows
+    final items = rows
         .map((row) => VocabularyItem.fromJson(Map<String, dynamic>.from(row)))
-        .toList(growable: false);
+        .map(_normalizeStoredItem);
+    return _dedupeItems(items);
   }
 
   Future<void> addFromNotes({
@@ -41,11 +42,23 @@ class VocabularyRepository {
       return;
     }
 
+    final existingKeys = (await fetchAll(
+      language: entry.language,
+    )).map((item) => _vocabularyKey(item.language, item.word)).toSet();
+    final newKeys = <String>{};
+
     for (final note in notes) {
       final parsed = _parseNote(note);
       if (parsed == null) {
         continue;
       }
+
+      final key = _vocabularyKey(entry.language, parsed.word);
+      if (existingKeys.contains(key) || newKeys.contains(key)) {
+        continue;
+      }
+      newKeys.add(key);
+
       await client.from('vocabulary').insert({
         'recording_id': entry.id,
         'language': entry.language,
@@ -124,15 +137,167 @@ class VocabularyRepository {
       return null;
     }
 
-    final separatorIndex = trimmed.indexOf(':');
-    if (separatorIndex > 0) {
+    final structured = _parseStructuredNote(trimmed);
+    if (structured != null) {
+      return structured;
+    }
+
+    return _ParsedVocabulary(
+      word: _cleanHeadword(trimmed),
+      meaning: '添削結果から追加',
+    );
+  }
+
+  _ParsedVocabulary? _parseStructuredNote(String trimmed) {
+    final separatorMatch = RegExp(
+      r'^(.{1,80}?)[：:]\s*(.+)$',
+    ).firstMatch(trimmed);
+    if (separatorMatch != null) {
       return _ParsedVocabulary(
-        word: trimmed.substring(0, separatorIndex).trim(),
-        meaning: trimmed.substring(separatorIndex + 1).trim(),
+        word: _cleanHeadword(separatorMatch.group(1)!),
+        meaning: separatorMatch.group(2)!.trim(),
       );
     }
 
-    return _ParsedVocabulary(word: trimmed, meaning: '添削メモから追加');
+    final hyphenMatch = RegExp(
+      r'^(.{1,80}?)\s+[−–—-]\s+(.+)$',
+    ).firstMatch(trimmed);
+    if (hyphenMatch != null) {
+      return _ParsedVocabulary(
+        word: _cleanHeadword(hyphenMatch.group(1)!),
+        meaning: hyphenMatch.group(2)!.trim(),
+      );
+    }
+
+    final quotedJapaneseMatch = RegExp(
+      r'''^[「『"“”'](.+?)[」』"“”']\s*(?:とは|は)\s*(.+)$''',
+    ).firstMatch(trimmed);
+    if (quotedJapaneseMatch != null) {
+      return _ParsedVocabulary(
+        word: _cleanHeadword(quotedJapaneseMatch.group(1)!),
+        meaning: quotedJapaneseMatch.group(2)!.trim(),
+      );
+    }
+
+    final japaneseMatch = RegExp(
+      r'^(.{1,80}?)\s*(?:とは|は)\s*(.+)$',
+    ).firstMatch(trimmed);
+    if (japaneseMatch != null) {
+      final word = _cleanHeadword(japaneseMatch.group(1)!);
+      if (_looksLikeHeadword(word)) {
+        return _ParsedVocabulary(
+          word: word,
+          meaning: japaneseMatch.group(2)!.trim(),
+        );
+      }
+    }
+
+    return null;
+  }
+
+  VocabularyItem _normalizeStoredItem(VocabularyItem item) {
+    final parsed = _parseStructuredNote(item.word.trim());
+    if (parsed == null) {
+      return item;
+    }
+
+    final meaning = item.meaning.trim();
+    return VocabularyItem(
+      id: item.id,
+      recordingId: item.recordingId,
+      language: item.language,
+      word: parsed.word,
+      meaning: meaning.isEmpty || meaning == item.word
+          ? parsed.meaning
+          : meaning,
+      example: item.example,
+      isReviewed: item.isReviewed,
+      reviewCount: item.reviewCount,
+      lastReviewedAt: item.lastReviewedAt,
+      createdAt: item.createdAt,
+    );
+  }
+
+  List<VocabularyItem> _dedupeItems(Iterable<VocabularyItem> items) {
+    final byKey = <String, VocabularyItem>{};
+    for (final item in items) {
+      final key = _vocabularyKey(item.language, item.word);
+      final existing = byKey[key];
+      byKey[key] = existing == null ? item : _mergeItems(existing, item);
+    }
+
+    final deduped = byKey.values.toList(growable: false);
+    deduped.sort((a, b) {
+      final wordCompare = a.word.toLowerCase().compareTo(b.word.toLowerCase());
+      if (wordCompare != 0) {
+        return wordCompare;
+      }
+      return a.createdAt.compareTo(b.createdAt);
+    });
+    return deduped;
+  }
+
+  VocabularyItem _mergeItems(VocabularyItem first, VocabularyItem second) {
+    return VocabularyItem(
+      id: first.id,
+      recordingId: first.recordingId,
+      language: first.language,
+      word: first.word,
+      meaning: _mergeText(first.meaning, second.meaning),
+      example: _mergeNullableText(first.example, second.example),
+      isReviewed: first.isReviewed && second.isReviewed,
+      reviewCount: first.reviewCount + second.reviewCount,
+      lastReviewedAt: _latestDate(first.lastReviewedAt, second.lastReviewedAt),
+      createdAt: first.createdAt.isBefore(second.createdAt)
+          ? first.createdAt
+          : second.createdAt,
+    );
+  }
+
+  String _mergeText(String first, String second) {
+    final values = [
+      first.trim(),
+      second.trim(),
+    ].where((value) => value.isNotEmpty).toSet().toList(growable: false);
+    return values.join('\n\n');
+  }
+
+  String? _mergeNullableText(String? first, String? second) {
+    final merged = _mergeText(first ?? '', second ?? '');
+    return merged.isEmpty ? null : merged;
+  }
+
+  DateTime? _latestDate(DateTime? first, DateTime? second) {
+    if (first == null) {
+      return second;
+    }
+    if (second == null) {
+      return first;
+    }
+    return first.isAfter(second) ? first : second;
+  }
+
+  String _vocabularyKey(String language, String word) {
+    return '${language.trim().toLowerCase()}|${_normalizeWord(word)}';
+  }
+
+  String _normalizeWord(String value) {
+    return _cleanHeadword(value).toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  String _cleanHeadword(String value) {
+    return value
+        .trim()
+        .replaceAll(RegExp(r'''^[\s「『"“”']+|[\s」』"“”'。,.、]+$'''), '')
+        .trim();
+  }
+
+  bool _looksLikeHeadword(String value) {
+    if (value.isEmpty || value.length > 80) {
+      return false;
+    }
+    return RegExp(r'[A-Za-zÀ-ÿ]').hasMatch(value) ||
+        !RegExp(r'[。！？!?]').hasMatch(value);
   }
 }
 
