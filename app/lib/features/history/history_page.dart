@@ -12,8 +12,25 @@ import '../recording/widgets/sync_status_banner.dart';
 import '../settings/data/app_settings_store.dart';
 import 'history_detail_page.dart';
 
+class HistoryPageController extends ChangeNotifier {
+  RecordEntry? _pendingDetailEntry;
+
+  void openDetails(RecordEntry entry) {
+    _pendingDetailEntry = entry;
+    notifyListeners();
+  }
+
+  RecordEntry? takePendingDetailEntry() {
+    final entry = _pendingDetailEntry;
+    _pendingDetailEntry = null;
+    return entry;
+  }
+}
+
 class HistoryPage extends StatefulWidget {
-  const HistoryPage({super.key});
+  const HistoryPage({this.controller, super.key});
+
+  final HistoryPageController? controller;
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
@@ -42,6 +59,7 @@ class _HistoryPageState extends State<HistoryPage> {
   void initState() {
     super.initState();
     _store.addListener(_handleStoreChanged);
+    widget.controller?.addListener(_handleControllerChanged);
     _player.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed && mounted) {
         setState(() {
@@ -54,8 +72,19 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   @override
+  void didUpdateWidget(covariant HistoryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) {
+      return;
+    }
+    oldWidget.controller?.removeListener(_handleControllerChanged);
+    widget.controller?.addListener(_handleControllerChanged);
+  }
+
+  @override
   void dispose() {
     _store.removeListener(_handleStoreChanged);
+    widget.controller?.removeListener(_handleControllerChanged);
     _searchController.dispose();
     _player.dispose();
     super.dispose();
@@ -81,6 +110,17 @@ class _HistoryPageState extends State<HistoryPage> {
         _selectedIds.removeWhere((id) => !entryIds.contains(id));
       });
     }
+  }
+
+  void _handleControllerChanged() {
+    final entry = widget.controller?.takePendingDetailEntry();
+    if (entry == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _detailEntry = entry;
+      _selectedIds.clear();
+    });
   }
 
   @override

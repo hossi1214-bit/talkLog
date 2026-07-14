@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'controllers/record_controller.dart';
 import 'data/recording_store.dart';
+import 'models/record_entry.dart';
 import 'services/speaking_draft_service.dart';
 import 'widgets/record_button.dart';
 import 'widgets/sync_status_banner.dart';
 
 class RecordPage extends StatefulWidget {
-  const RecordPage({super.key});
+  const RecordPage({this.onRecordingSaved, super.key});
+
+  final ValueChanged<RecordEntry>? onRecordingSaved;
 
   @override
   State<RecordPage> createState() => _RecordPageState();
@@ -98,6 +101,19 @@ class _RecordPageState extends State<RecordPage> {
     });
   }
 
+  Future<void> _toggleRecording() async {
+    final wasRecording = _controller.isRecording;
+    final savedEntry = await _controller.toggleRecording();
+    if (!mounted || savedEntry == null || !wasRecording) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.removeCurrentSnackBar();
+    messenger.showSnackBar(const SnackBar(content: Text('録音を保存しました。')));
+    widget.onRecordingSaved?.call(savedEntry);
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -165,7 +181,7 @@ class _RecordPageState extends State<RecordPage> {
                         RecordButton(
                           isRecording: _controller.isRecording,
                           isBusy: _controller.isBusy,
-                          onPressed: _controller.toggleRecording,
+                          onPressed: _toggleRecording,
                         ),
                         if (_controller.isRecording) ...[
                           const SizedBox(height: 12),

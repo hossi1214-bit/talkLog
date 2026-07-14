@@ -7,6 +7,7 @@ import '../features/history/history_page.dart';
 import '../features/home/home_page.dart';
 import '../features/progress/progress_page.dart';
 import '../features/recording/data/recording_store.dart';
+import '../features/recording/models/record_entry.dart';
 import '../features/recording/record_page.dart';
 import '../features/settings/data/app_settings_store.dart';
 import '../features/settings/settings_page.dart';
@@ -21,11 +22,13 @@ class AppNavigation extends StatefulWidget {
 
 class _AppNavigationState extends State<AppNavigation> {
   static const _recordIndex = 1;
+  static const _historyIndex = 2;
   static const _settingsIndex = 5;
 
   final _authSessionService = AuthSessionService.instance;
   final _recordingStore = RecordingStore.instance;
   final _settingsStore = AppSettingsStore.instance;
+  final _historyController = HistoryPageController();
 
   int _currentIndex = _settingsIndex;
   String? _loadedUserId;
@@ -39,8 +42,8 @@ class _AppNavigationState extends State<AppNavigation> {
     super.initState();
     _pages = [
       HomePage(onStartRecording: _openRecording),
-      const RecordPage(),
-      const HistoryPage(),
+      RecordPage(onRecordingSaved: _openRecordingDetail),
+      HistoryPage(controller: _historyController),
       const VocabularyPage(),
       const ProgressPage(),
       const SettingsPage(),
@@ -52,6 +55,7 @@ class _AppNavigationState extends State<AppNavigation> {
   @override
   void dispose() {
     _authSessionService.removeListener(_handleAuthChanged);
+    _historyController.dispose();
     super.dispose();
   }
 
@@ -115,6 +119,13 @@ class _AppNavigationState extends State<AppNavigation> {
     setState(() {
       _currentIndex = _settingsIndex;
     });
+  }
+
+  void _openRecordingDetail(RecordEntry entry) {
+    setState(() {
+      _currentIndex = _historyIndex;
+    });
+    _historyController.openDetails(entry);
   }
 
   void _showLoginRequiredMessage() {

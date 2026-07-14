@@ -46,18 +46,18 @@ class RecordController extends ChangeNotifier {
     unawaited(settings.load());
   }
 
-  Future<void> toggleRecording() async {
+  Future<RecordEntry?> toggleRecording() async {
     _ensureSettingsStore();
     if (_isBusy) {
-      return;
+      return null;
     }
 
     if (_isRecording) {
-      await stopRecording();
-      return;
+      return stopRecording();
     }
 
     await startRecording();
+    return null;
   }
 
   Future<void> startRecording() async {
@@ -98,12 +98,12 @@ class RecordController extends ChangeNotifier {
     }
   }
 
-  Future<void> stopRecording() async {
+  Future<RecordEntry?> stopRecording() async {
     _ensureSettingsStore();
     if (!_isRecording || _isBusy) {
       _stopRecordingClock();
       notifyListeners();
-      return;
+      return null;
     }
 
     _isBusy = true;
@@ -115,15 +115,15 @@ class RecordController extends ChangeNotifier {
     try {
       final audioPath = await _recordService.stop();
       final now = DateTime.now().toUtc();
-      await _store.add(
-        RecordEntry(
-          id: const Uuid().v4(),
-          createdAt: now,
-          duration: duration,
-          audioPath: audioPath,
-          language: language,
-        ),
+      final entry = RecordEntry(
+        id: const Uuid().v4(),
+        createdAt: now,
+        duration: duration,
+        audioPath: audioPath,
+        language: language,
       );
+      await _store.add(entry);
+      return entry;
     } on RecordSaveException catch (error) {
       _errorMessage = '録音を保存できませんでした: ${_friendlyError(error.message)}';
     } catch (error) {
@@ -132,6 +132,7 @@ class RecordController extends ChangeNotifier {
       _isBusy = false;
       notifyListeners();
     }
+    return null;
   }
 
   Future<void> cancelRecording() async {
