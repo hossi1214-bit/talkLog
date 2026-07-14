@@ -161,19 +161,7 @@ class _RecordPageState extends State<RecordPage> {
                                 ],
                               ),
                         ),
-                        const SizedBox(height: 24),
-                        _SpeakingDraftPanel(
-                          controller: _intentController,
-                          language: _controller.learningLanguage,
-                          draftText: _draftText,
-                          errorText: _draftError,
-                          isLoading: _isCreatingDraft,
-                          onCreate: _isCreatingDraft
-                              ? null
-                              : _createSpeakingDraft,
-                          onClear: _clearDraft,
-                        ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 36),
                         RecordButton(
                           isRecording: _controller.isRecording,
                           isBusy: _controller.isBusy,
@@ -189,6 +177,18 @@ class _RecordPageState extends State<RecordPage> {
                                 : _controller.cancelRecording,
                           ),
                         ],
+                        const SizedBox(height: 20),
+                        _SpeakingDraftPanel(
+                          controller: _intentController,
+                          language: _controller.learningLanguage,
+                          draftText: _draftText,
+                          errorText: _draftError,
+                          isLoading: _isCreatingDraft,
+                          onCreate: _isCreatingDraft
+                              ? null
+                              : _createSpeakingDraft,
+                          onClear: _clearDraft,
+                        ),
                         const SizedBox(height: 20),
                         Text(
                           _controller.isBusy

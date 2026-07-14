@@ -20,6 +20,7 @@ class _VocabularyPageState extends State<VocabularyPage> {
   bool _isReviewMode = false;
   bool _isMeaningVisible = false;
   int _reviewIndex = 0;
+  int _cardResetKey = 0;
   String? _selectedLanguage;
 
   @override
@@ -43,8 +44,12 @@ class _VocabularyPageState extends State<VocabularyPage> {
       return;
     }
     setState(() {
+      final previousLanguage = _selectedLanguage;
       _selectedLanguage = _settingsStore.learningLanguage;
       _itemsFuture = _repository.fetchAll(language: _selectedLanguage);
+      if (previousLanguage != _selectedLanguage) {
+        _cardResetKey++;
+      }
       _resetReviewState();
     });
   }
@@ -54,8 +59,12 @@ class _VocabularyPageState extends State<VocabularyPage> {
       return;
     }
     setState(() {
+      final previousLanguage = _selectedLanguage;
       _selectedLanguage = _settingsStore.learningLanguage;
       _itemsFuture = _repository.fetchAll(language: _selectedLanguage);
+      if (previousLanguage != _selectedLanguage) {
+        _cardResetKey++;
+      }
       _resetReviewState();
     });
   }
@@ -74,6 +83,7 @@ class _VocabularyPageState extends State<VocabularyPage> {
     setState(() {
       _selectedLanguage = language;
       _itemsFuture = _repository.fetchAll(language: language);
+      _cardResetKey++;
       _resetReviewState();
     });
   }
@@ -274,6 +284,9 @@ class _VocabularyPageState extends State<VocabularyPage> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _VocabularyFlipCard(
+                      key: ValueKey(
+                        '$_cardResetKey-${_selectedLanguage ?? 'all'}-${item.id}',
+                      ),
                       item: item,
                       onReviewedChanged: (value) =>
                           _setReviewed(item, value ?? false),
@@ -291,6 +304,7 @@ class _VocabularyPageState extends State<VocabularyPage> {
 
 class _VocabularyFlipCard extends StatefulWidget {
   const _VocabularyFlipCard({
+    super.key,
     required this.item,
     required this.onReviewedChanged,
     required this.onEdit,
