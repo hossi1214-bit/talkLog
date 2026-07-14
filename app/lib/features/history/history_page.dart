@@ -128,6 +128,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final detailEntry = _detailEntry;
     if (detailEntry != null) {
       return HistoryDetailPage(
+        key: ValueKey(detailEntry.id),
         entry: detailEntry,
         onClose: _closeDetails,
         onChanged: _loadCorrectedIds,

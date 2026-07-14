@@ -60,6 +60,21 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant HistoryDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entry.id == widget.entry.id) {
+      return;
+    }
+    _player.stop();
+    setState(() {
+      _isPlaying = false;
+      _isDeleting = false;
+      _showCorrection = false;
+      _statusFuture = _loadStatus();
+    });
+  }
+
   Future<_RecordingCloudStatus> _loadStatus() async {
     final isSynced = await _recordingRepository.hasRemoteRecording(
       widget.entry,
