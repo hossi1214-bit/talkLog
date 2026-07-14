@@ -14,9 +14,12 @@ class VocabularyPage extends StatefulWidget {
 class _VocabularyPageState extends State<VocabularyPage> {
   final _repository = VocabularyRepository();
   final _settingsStore = AppSettingsStore.instance;
+  final _searchController = TextEditingController();
 
   late Future<List<VocabularyItem>> _itemsFuture;
-  bool _showReviewed = true;
+  _VocabularyDisplayFilter _displayFilter = _VocabularyDisplayFilter.all;
+  _VocabularySortMode _sortMode = _VocabularySortMode.word;
+  String _query = '';
   bool _isReviewMode = false;
   bool _isMeaningVisible = false;
   int _reviewIndex = 0;
@@ -34,6 +37,7 @@ class _VocabularyPageState extends State<VocabularyPage> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     _settingsStore.removeListener(_handleSettingsChanged);
     super.dispose();
   }
@@ -189,16 +193,46 @@ class _VocabularyPageState extends State<VocabularyPage> {
     _reviewIndex = 0;
   }
 
-  List<VocabularyItem> _sortByWord(Iterable<VocabularyItem> items) {
+  List<VocabularyItem> _sortItems(Iterable<VocabularyItem> items) {
     final sorted = items.toList(growable: false);
     sorted.sort((a, b) {
-      final wordCompare = a.word.toLowerCase().compareTo(b.word.toLowerCase());
-      if (wordCompare != 0) {
-        return wordCompare;
+      final compare = switch (_sortMode) {
+        _VocabularySortMode.word => a.word.toLowerCase().compareTo(
+          b.word.toLowerCase(),
+        ),
+        _VocabularySortMode.createdAt => b.createdAt.compareTo(a.createdAt),
+        _VocabularySortMode.reviewCount => b.reviewCount.compareTo(
+          a.reviewCount,
+        ),
+      };
+      if (compare != 0) {
+        return compare;
       }
-      return a.createdAt.compareTo(b.createdAt);
+      return a.word.toLowerCase().compareTo(b.word.toLowerCase());
     });
     return sorted;
+  }
+
+  bool _matchesDisplayFilter(VocabularyItem item) {
+    return switch (_displayFilter) {
+      _VocabularyDisplayFilter.all => true,
+      _VocabularyDisplayFilter.pending => !item.isReviewed,
+      _VocabularyDisplayFilter.reviewed => item.isReviewed,
+    };
+  }
+
+  bool _matchesQuery(VocabularyItem item) {
+    final query = _query;
+    if (query.isEmpty) {
+      return true;
+    }
+    final target = [
+      item.word,
+      item.meaning,
+      item.example ?? '',
+      item.language,
+    ].join(' ').toLowerCase();
+    return target.contains(query);
   }
 
   @override
@@ -221,11 +255,13 @@ class _VocabularyPageState extends State<VocabularyPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final allItems = _sortByWord(snapshot.data!);
-          final visibleItems = _sortByWord(
-            allItems.where((item) => _showReviewed || !item.isReviewed),
+          final allItems = _sortItems(snapshot.data!);
+          final visibleItems = _sortItems(
+            allItems.where(
+              (item) => _matchesDisplayFilter(item) && _matchesQuery(item),
+            ),
           );
-          final reviewItems = _sortByWord(
+          final reviewItems = _sortItems(
             allItems.where((item) => !item.isReviewed),
           );
 
@@ -258,20 +294,40 @@ class _VocabularyPageState extends State<VocabularyPage> {
                 onSelected: _selectLanguage,
               ),
               const SizedBox(height: 8),
+              _VocabularySearchAndSort(
+                controller: _searchController,
+                query: _query,
+                displayFilter: _displayFilter,
+                sortMode: _sortMode,
+                visibleCount: visibleItems.length,
+                totalCount: allItems.length,
+                onQueryChanged: (value) {
+                  setState(() {
+                    _query = value.trim().toLowerCase();
+                  });
+                },
+                onClearQuery: () {
+                  setState(() {
+                    _query = '';
+                    _searchController.clear();
+                  });
+                },
+                onDisplayFilterChanged: (filter) {
+                  setState(() {
+                    _displayFilter = filter;
+                  });
+                },
+                onSortModeChanged: (sortMode) {
+                  setState(() {
+                    _sortMode = sortMode;
+                  });
+                },
+              ),
+              const SizedBox(height: 8),
               _VocabularySummary(
                 totalCount: allItems.length,
                 reviewCount: reviewItems.length,
                 onStartReview: reviewItems.isEmpty ? null : _startReview,
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                value: _showReviewed,
-                title: const Text('復習済みも表示'),
-                onChanged: (value) {
-                  setState(() {
-                    _showReviewed = value;
-                  });
-                },
               ),
               const SizedBox(height: 8),
               if (visibleItems.isEmpty)
@@ -300,6 +356,134 @@ class _VocabularyPageState extends State<VocabularyPage> {
       ),
     );
   }
+}
+
+class _VocabularySearchAndSort extends StatelessWidget {
+  const _VocabularySearchAndSort({
+    required this.controller,
+    required this.query,
+    required this.displayFilter,
+    required this.sortMode,
+    required this.visibleCount,
+    required this.totalCount,
+    required this.onQueryChanged,
+    required this.onClearQuery,
+    required this.onDisplayFilterChanged,
+    required this.onSortModeChanged,
+  });
+
+  final TextEditingController controller;
+  final String query;
+  final _VocabularyDisplayFilter displayFilter;
+  final _VocabularySortMode sortMode;
+  final int visibleCount;
+  final int totalCount;
+  final ValueChanged<String> onQueryChanged;
+  final VoidCallback onClearQuery;
+  final ValueChanged<_VocabularyDisplayFilter> onDisplayFilterChanged;
+  final ValueChanged<_VocabularySortMode> onSortModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: controller,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '検索をクリア',
+                        icon: const Icon(Icons.close),
+                        onPressed: onClearQuery,
+                      ),
+                labelText: '単語帳を検索',
+                hintText: '単語・意味・例文で検索',
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: onQueryChanged,
+              textInputAction: TextInputAction.search,
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final filter in _VocabularyDisplayFilter.values)
+                  ChoiceChip(
+                    label: Text(filter.label),
+                    selected: displayFilter == filter,
+                    onSelected: (_) => onDisplayFilterChanged(filter),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '$visibleCount / $totalCount 語を表示',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+                MenuAnchor(
+                  builder: (context, controller, child) {
+                    return TextButton.icon(
+                      icon: const Icon(Icons.sort),
+                      label: Text(sortMode.label),
+                      onPressed: () {
+                        if (controller.isOpen) {
+                          controller.close();
+                        } else {
+                          controller.open();
+                        }
+                      },
+                    );
+                  },
+                  menuChildren: [
+                    for (final mode in _VocabularySortMode.values)
+                      MenuItemButton(
+                        leadingIcon: sortMode == mode
+                            ? const Icon(Icons.check)
+                            : const SizedBox(width: 24),
+                        onPressed: () => onSortModeChanged(mode),
+                        child: Text(mode.label),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _VocabularyDisplayFilter {
+  all('すべて'),
+  pending('復習待ち'),
+  reviewed('復習済み');
+
+  const _VocabularyDisplayFilter(this.label);
+
+  final String label;
+}
+
+enum _VocabularySortMode {
+  word('アルファベット順'),
+  createdAt('最近追加'),
+  reviewCount('復習回数');
+
+  const _VocabularySortMode(this.label);
+
+  final String label;
 }
 
 class _VocabularyFlipCard extends StatefulWidget {
