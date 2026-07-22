@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:talklog/features/correction/correction_result_page.dart';
 import 'package:talklog/features/correction/models/ai_correction_result.dart';
 import 'package:talklog/features/correction/repositories/correction_repository.dart';
+import 'package:talklog/features/correction/services/edge_function_correction_service.dart';
 import 'package:talklog/features/recording/models/record_entry.dart';
 import 'package:talklog/l10n/app_localizations.dart';
 
@@ -131,6 +134,42 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('shows progress while reanalyzing a mismatched correction', (
+    tester,
+  ) async {
+    final entry = RecordEntry(
+      id: 'reanalyze-progress',
+      createdAt: DateTime.utc(2026, 7, 23),
+      duration: const Duration(seconds: 10),
+      audioPath: 'recording.m4a',
+      language: 'es',
+    );
+    final service = _PendingCorrectionService();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: CorrectionResultPage(
+          entry: entry,
+          correctionRepository: _MismatchedCorrectionRepository(),
+          correctionService: service,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Correct in the current language'));
+    await tester.pump();
+
+    expect(find.text('Analyzing your recording...'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    service.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('Corrected after waiting'), findsOneWidget);
+  });
 }
 
 class _MismatchedCorrectionRepository extends CorrectionRepository {
@@ -152,6 +191,31 @@ class _SavedCorrectionRepository extends CorrectionRepository {
 
   @override
   Future<bool> hasSavedResult(RecordEntry entry) async => true;
+}
+
+class _PendingCorrectionService extends EdgeFunctionCorrectionService {
+  final _completer = Completer<AiCorrectionResult>();
+
+  @override
+  Future<AiCorrectionResult> analyze(RecordEntry entry) => _completer.future;
+
+  void complete() {
+    _completer.complete(
+      const AiCorrectionResult(
+        transcript: 'Original',
+        correctedText: 'Corrected after waiting',
+        naturalExpression: 'Natural',
+        translation: 'Translation',
+        grammarNotes: [],
+        vocabularyNotes: [],
+        score: 90,
+        encouragement: 'Great',
+        learningLanguage: 'es',
+        baseLocale: 'en',
+        promptVersion: AiCorrectionResult.currentPromptVersion,
+      ),
+    );
+  }
 }
 
 Future<void> _pump(

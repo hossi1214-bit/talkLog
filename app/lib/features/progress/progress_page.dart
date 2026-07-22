@@ -1083,6 +1083,11 @@ class _WordUsageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final localizedAdvice = usage.localizedAdvice(
+      AppSettingsStore.instance.baseLocaleCode,
+      l10n.wordUsageAdviceFallback(usage.word),
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
@@ -1109,7 +1114,7 @@ class _WordUsageTile extends StatelessWidget {
                 ),
               ),
               Text(
-                AppLocalizations.of(context).recordingCount(usage.count),
+                l10n.recordingCount(usage.count),
                 style: theme.textTheme.bodySmall,
               ),
             ],
@@ -1128,9 +1133,9 @@ class _WordUsageTile extends StatelessWidget {
               ],
             ),
           ],
-          if (usage.advice.isNotEmpty) ...[
+          if (localizedAdvice.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(usage.advice, style: theme.textTheme.bodyMedium),
+            Text(localizedAdvice, style: theme.textTheme.bodyMedium),
           ],
           const Divider(height: 22),
         ],

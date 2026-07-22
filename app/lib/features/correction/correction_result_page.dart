@@ -12,19 +12,21 @@ class CorrectionResultPage extends StatefulWidget {
     required this.entry,
     this.onClose,
     this.correctionRepository,
+    this.correctionService,
     super.key,
   });
 
   final RecordEntry entry;
   final VoidCallback? onClose;
   final CorrectionRepository? correctionRepository;
+  final EdgeFunctionCorrectionService? correctionService;
 
   @override
   State<CorrectionResultPage> createState() => _CorrectionResultPageState();
 }
 
 class _CorrectionResultPageState extends State<CorrectionResultPage> {
-  final _edgeCorrectionService = EdgeFunctionCorrectionService();
+  late final EdgeFunctionCorrectionService _edgeCorrectionService;
   late final CorrectionRepository _correctionRepository;
   final _vocabularyRepository = VocabularyRepository();
 
@@ -36,6 +38,8 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
     super.initState();
     _correctionRepository =
         widget.correctionRepository ?? CorrectionRepository();
+    _edgeCorrectionService =
+        widget.correctionService ?? EdgeFunctionCorrectionService();
     _resultFuture = _loadSavedOrAnalyze();
   }
 
@@ -155,8 +159,11 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
               onClose: widget.onClose ?? () => Navigator.of(context).maybePop(),
             );
           }
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _CorrectionLoadingView(message: l10n.correctionAnalyzing);
+          }
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return _CorrectionLoadingView(message: l10n.correctionAnalyzing);
           }
 
           final viewData = snapshot.data!;
@@ -256,6 +263,26 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
       'INVALID_RESPONSE' => l10n.invalidServerResponse,
       _ => l10n.analysisFailed,
     };
+  }
+}
+
+class _CorrectionLoadingView extends StatelessWidget {
+  const _CorrectionLoadingView({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text(message),
+        ],
+      ),
+    );
   }
 }
 

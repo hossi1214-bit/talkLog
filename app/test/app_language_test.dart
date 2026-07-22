@@ -11,6 +11,11 @@ void main() {
       expect(AppLanguage.parse('unsupported'), isNull);
     });
 
+    test('returns stable and legacy values for database compatibility', () {
+      expect(storedLanguageValues('es'), ['es', 'スペイン語']);
+      expect(storedLanguageValues('スペイン語'), ['es', 'スペイン語']);
+    });
+
     test('base locales are Japanese, English, and Spanish', () {
       expect(supportedBaseLocales, {
         AppLanguage.japanese,

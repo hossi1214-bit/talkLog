@@ -20,20 +20,13 @@ class WordUsageRepository {
     }
 
     try {
-      final rows = language == null
-          ? await client
-                .from('word_usage')
-                .select('word, count, language, alternative_words, advice')
-                .eq('user_id', userId)
-                .order('count', ascending: false)
-                .limit(limit)
-          : await client
-                .from('word_usage')
-                .select('word, count, language, alternative_words, advice')
-                .eq('user_id', userId)
-                .eq('language', language)
-                .order('count', ascending: false)
-                .limit(limit);
+      final rows = await _fetchRows(
+        client: client,
+        userId: userId,
+        language: language,
+        limit: limit,
+        includeLocalizedAdvice: true,
+      );
 
       return rows
           .map(
@@ -42,7 +35,44 @@ class WordUsageRepository {
           .where((usage) => usage.word.isNotEmpty)
           .toList(growable: false);
     } catch (_) {
-      return const [];
+      try {
+        final rows = await _fetchRows(
+          client: client,
+          userId: userId,
+          language: language,
+          limit: limit,
+          includeLocalizedAdvice: false,
+        );
+        return rows
+            .map(
+              (row) =>
+                  WordUsage.fromJson(Map<String, dynamic>.from(row as Map)),
+            )
+            .where((usage) => usage.word.isNotEmpty)
+            .toList(growable: false);
+      } catch (_) {
+        return const [];
+      }
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchRows({
+    required SupabaseClient client,
+    required String userId,
+    required String? language,
+    required int limit,
+    required bool includeLocalizedAdvice,
+  }) async {
+    final columns = includeLocalizedAdvice
+        ? 'word, count, language, alternative_words, advice, advice_i18n'
+        : 'word, count, language, alternative_words, advice';
+    var query = client.from('word_usage').select(columns).eq('user_id', userId);
+    if (language != null) {
+      query = query.eq('language', language);
+    }
+    final rows = await query.order('count', ascending: false).limit(limit);
+    return rows
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList(growable: false);
   }
 }

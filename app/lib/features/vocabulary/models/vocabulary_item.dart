@@ -1,3 +1,5 @@
+import '../../settings/models/app_language.dart';
+
 class VocabularyItem {
   const VocabularyItem({
     required this.id,
@@ -37,8 +39,9 @@ class VocabularyItem {
       recordingId: json['recording_id'] as String,
       language: json['language'] as String? ?? 'スペイン語',
       learningLanguage:
-          json['learning_language'] as String? ??
-          json['language'] as String? ??
+          AppLanguage.parse(
+            json['learning_language'] as String? ?? json['language'] as String?,
+          )?.code ??
           'es',
       word: json['word'] as String? ?? '',
       meaning: json['meaning'] as String? ?? '',

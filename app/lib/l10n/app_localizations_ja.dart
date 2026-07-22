@@ -309,6 +309,14 @@ class AppLocalizationsJa extends AppLocalizations {
   String get reanalyzeInCurrentLanguage => '現在の言語で再添削';
 
   @override
+  String get correctionAnalyzing => '録音をAIで添削しています...';
+
+  @override
+  String wordUsageAdviceFallback(String word) {
+    return '$word がよく出ています。次回は詳細や理由を1つ足して話してみましょう。';
+  }
+
+  @override
   String get exampleTranslation => '例文の翻訳';
 
   @override

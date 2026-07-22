@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../recording/models/record_entry.dart';
 import '../../settings/data/app_settings_store.dart';
+import '../../settings/models/app_language.dart';
 import '../models/vocabulary_item.dart';
 
 class VocabularyRepository {
@@ -27,7 +28,7 @@ class VocabularyRepository {
         : await client
               .from('vocabulary')
               .select()
-              .eq('learning_language', language)
+              .inFilter('learning_language', storedLanguageValues(language))
               .eq('base_locale', baseLocale)
               .order('word', ascending: true);
 

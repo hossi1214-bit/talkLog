@@ -22,4 +22,18 @@ void main() {
     expect(item.exampleTranslation, 'Bebo café.');
     expect(item.languageMetadata['pronunciation'], 'ˈkɒfi');
   });
+
+  test('normalizes a legacy learning language label', () {
+    final item = VocabularyItem.fromJson({
+      'id': 'word-legacy',
+      'recording_id': 'recording-legacy',
+      'language': 'スペイン語',
+      'learning_language': 'スペイン語',
+      'word': 'hola',
+      'meaning': 'hello',
+      'created_at': '2026-07-23T00:00:00Z',
+    });
+
+    expect(item.learningLanguage, 'es');
+  });
 }

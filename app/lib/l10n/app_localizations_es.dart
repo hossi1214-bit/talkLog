@@ -332,6 +332,14 @@ class AppLocalizationsEs extends AppLocalizations {
   String get reanalyzeInCurrentLanguage => 'Corregir en el idioma actual';
 
   @override
+  String get correctionAnalyzing => 'Analizando tu grabación...';
+
+  @override
+  String wordUsageAdviceFallback(String word) {
+    return 'Intenta usar $word con un detalle o una razón más en tu próxima grabación.';
+  }
+
+  @override
   String get exampleTranslation => 'Traducción del ejemplo';
 
   @override

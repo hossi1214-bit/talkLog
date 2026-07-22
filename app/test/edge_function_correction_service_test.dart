@@ -73,4 +73,22 @@ void main() {
       );
     }
   });
+
+  test('sends a stable code for a legacy recording language label', () {
+    final entry = RecordEntry(
+      id: 'legacy-spanish-recording',
+      createdAt: DateTime.utc(2026, 7, 23),
+      duration: const Duration(seconds: 10),
+      audioPath: 'recording.m4a',
+      language: 'スペイン語',
+    );
+
+    final body = EdgeFunctionCorrectionService.requestBodyFor(
+      entry,
+      baseLocale: 'ja',
+    );
+
+    expect(body['learningLanguage'], 'es');
+    expect(body['language'], 'es');
+  });
 }

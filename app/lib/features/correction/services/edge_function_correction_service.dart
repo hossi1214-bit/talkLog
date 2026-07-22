@@ -19,7 +19,7 @@ class EdgeFunctionCorrectionService {
     required String baseLocale,
   }) {
     final parsedBaseLocale = AppLanguage.parse(baseLocale);
-    final parsedLearningLanguage = AppLanguage.parse(entry.language);
+    final parsedLearningLanguage = AppLanguage.parse(entry.languageCode);
     if (parsedBaseLocale == null ||
         parsedLearningLanguage == null ||
         !isValidLanguageSelection(
@@ -30,8 +30,8 @@ class EdgeFunctionCorrectionService {
     }
     return {
       'recordingId': entry.id,
-      'language': entry.language,
-      'learningLanguage': entry.language,
+      'language': parsedLearningLanguage.code,
+      'learningLanguage': parsedLearningLanguage.code,
       'baseLocale': baseLocale,
       'audioPath': entry.audioPath,
     };

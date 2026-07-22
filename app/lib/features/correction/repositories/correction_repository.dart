@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../recording/models/record_entry.dart';
 import '../../settings/data/app_settings_store.dart';
+import '../../settings/models/app_language.dart';
 import '../models/ai_correction_result.dart';
 
 class FeedbackInsight {
@@ -57,7 +58,7 @@ class CorrectionRepository {
           'corrected_text, natural_expression, translation_ja, grammar_feedback, vocabulary_feedback, score, comment, learning_language, base_locale, prompt_version',
         )
         .eq('recording_id', entry.id)
-        .eq('learning_language', entry.language)
+        .inFilter('learning_language', storedLanguageValues(entry.languageCode))
         .eq('base_locale', baseLocale)
         .eq('prompt_version', AiCorrectionResult.currentPromptVersion)
         .maybeSingle();
@@ -249,7 +250,7 @@ class CorrectionRepository {
       'vocabulary_feedback': result.vocabularyNotes,
       'score': result.score,
       'comment': result.encouragement,
-      'learning_language': result.learningLanguage ?? entry.language,
+      'learning_language': result.learningLanguage ?? entry.languageCode,
       'base_locale':
           result.baseLocale ?? AppSettingsStore.instance.baseLocaleCode,
       'prompt_version':

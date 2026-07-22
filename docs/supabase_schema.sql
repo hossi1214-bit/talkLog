@@ -101,6 +101,7 @@ create table if not exists public.word_usage (
   count integer not null default 0 check (count >= 0),
   alternative_words jsonb not null default '[]'::jsonb,
   advice text not null default '',
+  advice_i18n jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now(),
   unique (user_id, language, word)
 );

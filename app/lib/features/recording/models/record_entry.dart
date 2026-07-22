@@ -13,6 +13,8 @@ class RecordEntry {
   final String audioPath;
   final String language;
 
+  String get languageCode => _stableLanguageCode(language);
+
   factory RecordEntry.fromJson(Map<String, dynamic> json) {
     return RecordEntry(
       id: json['id'] as String,
@@ -51,4 +53,18 @@ class RecordEntry {
       'language': language,
     };
   }
+}
+
+String _stableLanguageCode(String value) {
+  const legacyCodes = {
+    '日本語': 'ja',
+    '英語': 'en',
+    'スペイン語': 'es',
+    'フランス語': 'fr',
+    'ドイツ語': 'de',
+    'イタリア語': 'it',
+    '韓国語': 'ko',
+    '中国語': 'zh-Hans',
+  };
+  return legacyCodes[value] ?? value;
 }

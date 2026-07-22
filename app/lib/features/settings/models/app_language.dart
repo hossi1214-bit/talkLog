@@ -86,3 +86,11 @@ AppLanguage preferredBaseLocaleFor(String languageTag) {
   }
   return AppLanguage.english;
 }
+
+List<String> storedLanguageValues(String value) {
+  final language = AppLanguage.parse(value);
+  if (language == null) {
+    return [value];
+  }
+  return [language.code, language.japaneseLabel];
+}

@@ -640,6 +640,18 @@ abstract class AppLocalizations {
   /// **'Correct in the current language'**
   String get reanalyzeInCurrentLanguage;
 
+  /// No description provided for @correctionAnalyzing.
+  ///
+  /// In en, this message translates to:
+  /// **'Analyzing your recording...'**
+  String get correctionAnalyzing;
+
+  /// No description provided for @wordUsageAdviceFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Try using {word} with one more detail or reason in your next recording.'**
+  String wordUsageAdviceFallback(String word);
+
   /// No description provided for @exampleTranslation.
   ///
   /// In en, this message translates to:

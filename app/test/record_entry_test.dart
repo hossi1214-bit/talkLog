@@ -13,4 +13,16 @@ void main() {
 
     expect(parsed.toUtc(), DateTime.utc(2026, 7, 9, 23, 58));
   });
+
+  test('normalizes a legacy language label to a stable code', () {
+    final entry = RecordEntry(
+      id: 'legacy-language',
+      createdAt: DateTime.utc(2026, 7, 23),
+      duration: const Duration(seconds: 10),
+      audioPath: 'recording.m4a',
+      language: 'スペイン語',
+    );
+
+    expect(entry.languageCode, 'es');
+  });
 }

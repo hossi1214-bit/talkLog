@@ -151,6 +151,7 @@ Deno.serve(async (request) => {
         supabase,
         userId: user.id,
         language: learningLanguage,
+        baseLocale,
         transcript: result.transcript,
         vocabularyNotes: result.vocabularyNotes,
         apiKey: openAiApiKey ?? undefined,
@@ -320,11 +321,13 @@ async function saveResult({
   recordingId,
   language,
   baseLocale,
+  baseLocale,
   result,
 }: {
   supabase: ReturnType<typeof createClient>;
   recordingId: string;
   language: string;
+  baseLocale: string;
   baseLocale: string;
   result: CorrectionResult;
 }) {
@@ -391,12 +394,12 @@ async function updateWordUsage({
 
   const words = [...counts.keys()].slice(0, 40);
   const generatedAdvice = apiKey
-    ? await createWordAdviceMap({ apiKey, language, transcript, words: words.slice(0, 10) }).catch(() => new Map<string, WordAdvice>())
+    ? await createWordAdviceMap({ apiKey, language, baseLocale, transcript, words: words.slice(0, 10) }).catch(() => new Map<string, WordAdvice>())
     : new Map<string, WordAdvice>();
 
   const { data: existingRows, error: selectError } = await supabase
     .from("word_usage")
-    .select("word, count")
+    .select("word, count, advice, advice_i18n")
     .eq("user_id", userId)
     .eq("language", language)
     .in("word", words);
@@ -405,21 +408,39 @@ async function updateWordUsage({
   }
 
   const existingCounts = new Map<string, number>();
+  const existingAdvice = new Map<string, string>();
+  const existingAdviceI18n = new Map<string, Record<string, string>>();
   for (const row of existingRows ?? []) {
     if (isRecord(row) && typeof row.word === "string" && typeof row.count === "number") {
       existingCounts.set(row.word, row.count);
+      if (typeof row.advice === "string") {
+        existingAdvice.set(row.word, row.advice);
+      }
+      if (isRecord(row.advice_i18n)) {
+        existingAdviceI18n.set(
+          row.word,
+          Object.fromEntries(
+            Object.entries(row.advice_i18n).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+          ),
+        );
+      }
     }
   }
 
   const rows = words.map((word) => {
-    const advice = generatedAdvice.get(word) ?? adviceFor(word, language);
+    const advice = generatedAdvice.get(word) ?? adviceFor(word, language, baseLocale);
+    const localizedAdvice = {
+      ...(existingAdviceI18n.get(word) ?? {}),
+      [baseLocale]: advice.advice,
+    };
     return {
       user_id: userId,
       language,
       word,
       count: (existingCounts.get(word) ?? 0) + (counts.get(word) ?? 0),
       alternative_words: advice.alternatives,
-      advice: advice.advice,
+      advice: baseLocale === "ja" ? advice.advice : (existingAdvice.get(word) ?? ""),
+      advice_i18n: localizedAdvice,
       updated_at: new Date().toISOString(),
     };
   });
@@ -435,11 +456,13 @@ async function updateWordUsage({
 async function createWordAdviceMap({
   apiKey,
   language,
+  baseLocale,
   transcript,
   words,
 }: {
   apiKey: string;
   language: string;
+  baseLocale: string;
   transcript: string;
   words: string[];
 }): Promise<Map<string, WordAdvice>> {
@@ -459,15 +482,16 @@ async function createWordAdviceMap({
         {
           role: "system",
           content:
-            "You are TalkLog, a concise vocabulary coach for Japanese learners. Return only valid JSON. Suggest natural paraphrases for the learner's target language and write advice in Japanese.",
+            `You are TalkLog, a concise vocabulary coach. Return only valid JSON. Suggest natural paraphrases for the learner's target language and write advice in the explanation language (${baseLocale}).`,
         },
         {
           role: "user",
           content: [
             `Learning language: ${language}`,
+            `Explanation language: ${baseLocale}`,
             `Transcript: ${transcript}`,
             `Words: ${words.join(", ")}`,
-            "For each word, provide 1 to 3 alternative words or expressions in the same language and one short Japanese advice sentence about nuance or how to vary the expression.",
+            "For each word, provide 1 to 3 alternative words or expressions in the learning language and one short advice sentence in the explanation language about nuance or how to vary the expression.",
           ].join("\n"),
         },
       ],
@@ -557,7 +581,13 @@ function stopWordsFor(language: string): Set<string> {
   return new Set([...(byLanguage[language] ?? []), ...common]);
 }
 
-function adviceFor(word: string, language: string): WordAdvice {
+function adviceFor(word: string, language: string, baseLocale: string): WordAdvice {
+  if (baseLocale !== "ja") {
+    const advice = baseLocale === "es"
+      ? `${word} aparece con frecuencia. Intenta añadir un detalle o una razón la próxima vez.`
+      : `${word} appears often. Try adding one detail or reason next time.`;
+    return { alternatives: [], advice };
+  }
   const dictionaries: Record<string, Record<string, WordAdvice>> = {
     英語: {
       good: {

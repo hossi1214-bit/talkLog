@@ -5,6 +5,7 @@ class WordUsage {
     required this.language,
     required this.alternativeWords,
     required this.advice,
+    this.adviceByLocale = const {},
   });
 
   final String word;
@@ -12,6 +13,18 @@ class WordUsage {
   final String language;
   final List<String> alternativeWords;
   final String advice;
+  final Map<String, String> adviceByLocale;
+
+  String localizedAdvice(String baseLocale, String fallback) {
+    final localized = adviceByLocale[baseLocale]?.trim();
+    if (localized != null && localized.isNotEmpty) {
+      return localized;
+    }
+    if (baseLocale == 'ja' && advice.trim().isNotEmpty) {
+      return advice;
+    }
+    return fallback;
+  }
 
   factory WordUsage.fromJson(Map<String, dynamic> json) {
     return WordUsage(
@@ -20,6 +33,13 @@ class WordUsage {
       language: json['language'] as String? ?? 'スペイン語',
       alternativeWords: _stringList(json['alternative_words']),
       advice: json['advice'] as String? ?? '',
+      adviceByLocale: json['advice_i18n'] is Map
+          ? Map<String, String>.from(
+              (json['advice_i18n'] as Map).map(
+                (key, value) => MapEntry(key.toString(), value.toString()),
+              ),
+            )
+          : const {},
     );
   }
 
