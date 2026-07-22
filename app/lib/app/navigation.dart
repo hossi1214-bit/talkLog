@@ -12,6 +12,7 @@ import '../features/recording/record_page.dart';
 import '../features/settings/data/app_settings_store.dart';
 import '../features/settings/settings_page.dart';
 import '../features/vocabulary/vocabulary_page.dart';
+import '../l10n/app_localizations.dart';
 
 class AppNavigation extends StatefulWidget {
   const AppNavigation({super.key});
@@ -129,24 +130,42 @@ class _AppNavigationState extends State<AppNavigation> {
   }
 
   void _showLoginRequiredMessage() {
+    final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     messenger.removeCurrentSnackBar();
-    messenger.showSnackBar(
-      const SnackBar(content: Text('利用するにはメールログインしてください。')),
-    );
+    messenger.showSnackBar(SnackBar(content: Text(l10n.loginRequired)));
   }
 
-  static const _items = [
-    BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'ホーム'),
-    BottomNavigationBarItem(icon: Icon(Icons.mic_none), label: '録音'),
-    BottomNavigationBarItem(icon: Icon(Icons.history), label: '履歴'),
-    BottomNavigationBarItem(icon: Icon(Icons.style_outlined), label: '単語帳'),
-    BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: '進捗'),
-    BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: '設定'),
+  List<BottomNavigationBarItem> _navigationItems(AppLocalizations l10n) => [
+    BottomNavigationBarItem(
+      icon: const Icon(Icons.home_outlined),
+      label: l10n.navHome,
+    ),
+    BottomNavigationBarItem(
+      icon: const Icon(Icons.mic_none),
+      label: l10n.navRecord,
+    ),
+    BottomNavigationBarItem(
+      icon: const Icon(Icons.history),
+      label: l10n.navHistory,
+    ),
+    BottomNavigationBarItem(
+      icon: const Icon(Icons.style_outlined),
+      label: l10n.navVocabulary,
+    ),
+    BottomNavigationBarItem(
+      icon: const Icon(Icons.show_chart),
+      label: l10n.navProgress,
+    ),
+    BottomNavigationBarItem(
+      icon: const Icon(Icons.settings_outlined),
+      label: l10n.navSettings,
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final body = _isLoggedIn
         ? IndexedStack(index: _currentIndex, children: _pages)
         : const SettingsPage();
@@ -156,7 +175,7 @@ class _AppNavigationState extends State<AppNavigation> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         type: BottomNavigationBarType.fixed,
-        items: _items,
+        items: _navigationItems(l10n),
         onTap: (index) {
           if (!_isLoggedIn && index != _settingsIndex) {
             setState(() {

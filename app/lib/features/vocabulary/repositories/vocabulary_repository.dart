@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../recording/models/record_entry.dart';
+import '../../settings/data/app_settings_store.dart';
 import '../models/vocabulary_item.dart';
 
 class VocabularyRepository {
@@ -16,15 +17,18 @@ class VocabularyRepository {
       return const [];
     }
 
+    final baseLocale = AppSettingsStore.instance.baseLocaleCode;
     final rows = language == null
         ? await client
               .from('vocabulary')
               .select()
+              .eq('base_locale', baseLocale)
               .order('word', ascending: true)
         : await client
               .from('vocabulary')
               .select()
-              .eq('language', language)
+              .eq('learning_language', language)
+              .eq('base_locale', baseLocale)
               .order('word', ascending: true);
 
     final items = rows
@@ -47,7 +51,7 @@ class VocabularyRepository {
     final existingItems = await fetchAll(language: entry.language);
     final existingByKey = {
       for (final item in existingItems)
-        _vocabularyKey(item.language, item.word): item,
+        _vocabularyKey(item.learningLanguage, item.word): item,
     };
     final newKeys = <String>{};
 
@@ -67,6 +71,7 @@ class VocabularyRepository {
             word: existing.word,
             meaning: parsed.meaning,
             example: existing.example,
+            exampleTranslation: existing.exampleTranslation,
           );
         }
         continue;
@@ -79,8 +84,12 @@ class VocabularyRepository {
       await client.from('vocabulary').insert({
         'recording_id': entry.id,
         'language': entry.language,
+        'learning_language': entry.language,
+        'base_locale': AppSettingsStore.instance.baseLocaleCode,
         'word': parsed.word,
         'meaning': parsed.meaning,
+        'example_translation': null,
+        'language_metadata': <String, dynamic>{},
         'is_reviewed': false,
       });
     }
@@ -91,6 +100,7 @@ class VocabularyRepository {
     required String word,
     required String meaning,
     required String? example,
+    required String? exampleTranslation,
   }) async {
     final client = _client;
     if (client == null) {
@@ -103,6 +113,9 @@ class VocabularyRepository {
           'word': word.trim(),
           'meaning': meaning.trim(),
           'example': example?.trim().isEmpty ?? true ? null : example!.trim(),
+          'example_translation': exampleTranslation?.trim().isEmpty ?? true
+              ? null
+              : exampleTranslation!.trim(),
         })
         .eq('id', item.id);
   }
@@ -169,6 +182,7 @@ class VocabularyRepository {
       final rows = await client
           .from('feedbacks')
           .select('recording_id, vocabulary_feedback')
+          .eq('base_locale', AppSettingsStore.instance.baseLocaleCode)
           .inFilter('recording_id', recordingIds);
       final notesByRecordingId = <String, List<String>>{};
       for (final row in rows) {
@@ -204,17 +218,21 @@ class VocabularyRepository {
       if (parsed == null || _isFallbackMeaning(parsed.meaning)) {
         continue;
       }
-      if (_vocabularyKey(item.language, parsed.word) !=
-          _vocabularyKey(item.language, item.word)) {
+      if (_vocabularyKey(item.learningLanguage, parsed.word) !=
+          _vocabularyKey(item.learningLanguage, item.word)) {
         continue;
       }
       return VocabularyItem(
         id: item.id,
         recordingId: item.recordingId,
         language: item.language,
+        learningLanguage: item.learningLanguage,
         word: item.word,
         meaning: parsed.meaning,
         example: item.example,
+        baseLocale: item.baseLocale,
+        exampleTranslation: item.exampleTranslation,
+        languageMetadata: item.languageMetadata,
         isReviewed: item.isReviewed,
         reviewCount: item.reviewCount,
         lastReviewedAt: item.lastReviewedAt,
@@ -307,11 +325,15 @@ class VocabularyRepository {
       id: item.id,
       recordingId: item.recordingId,
       language: item.language,
+      learningLanguage: item.learningLanguage,
       word: parsed.word,
       meaning: meaning.isEmpty || meaning == item.word
           ? parsed.meaning
           : meaning,
       example: item.example,
+      baseLocale: item.baseLocale,
+      exampleTranslation: item.exampleTranslation,
+      languageMetadata: item.languageMetadata,
       isReviewed: item.isReviewed,
       reviewCount: item.reviewCount,
       lastReviewedAt: item.lastReviewedAt,
@@ -322,7 +344,7 @@ class VocabularyRepository {
   List<VocabularyItem> _dedupeItems(Iterable<VocabularyItem> items) {
     final byKey = <String, VocabularyItem>{};
     for (final item in items) {
-      final key = _vocabularyKey(item.language, item.word);
+      final key = _vocabularyKey(item.learningLanguage, item.word);
       final existing = byKey[key];
       byKey[key] = existing == null ? item : _mergeItems(existing, item);
     }
@@ -343,9 +365,16 @@ class VocabularyRepository {
       id: first.id,
       recordingId: first.recordingId,
       language: first.language,
+      learningLanguage: first.learningLanguage,
       word: first.word,
       meaning: _mergeText(first.meaning, second.meaning),
       example: _mergeNullableText(first.example, second.example),
+      baseLocale: first.baseLocale,
+      exampleTranslation: _mergeNullableText(
+        first.exampleTranslation,
+        second.exampleTranslation,
+      ),
+      languageMetadata: {...second.languageMetadata, ...first.languageMetadata},
       isReviewed: first.isReviewed && second.isReviewed,
       reviewCount: first.reviewCount + second.reviewCount,
       lastReviewedAt: _latestDate(first.lastReviewedAt, second.lastReviewedAt),

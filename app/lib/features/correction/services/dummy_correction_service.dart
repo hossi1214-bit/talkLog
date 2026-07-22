@@ -11,7 +11,7 @@ class DummyCorrectionService {
       transcript: _transcriptFor(entry.language),
       correctedText: _correctedTextFor(entry.language),
       naturalExpression: _naturalExpressionFor(entry.language),
-      japaneseTranslation: _translationFor(entry.language),
+      translation: _translationFor(entry.language),
       grammarNotes: _grammarNotesFor(entry.language),
       vocabularyNotes: _vocabularyNotesFor(entry.language),
       score: 82,

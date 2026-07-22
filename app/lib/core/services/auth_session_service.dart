@@ -132,7 +132,7 @@ class AuthSessionService extends ChangeNotifier {
         password: password,
         emailRedirectTo: emailRedirectTo,
       );
-      _message = '確認メールを送信しました。メール内のリンクから登録を完了してください。';
+      _message = 'AUTH_CONFIRMATION_SENT';
       await _tryEnsureProfile(client);
     }, actionLabel: 'メール登録');
   }
@@ -155,7 +155,7 @@ class AuthSessionService extends ChangeNotifier {
         email: normalizedEmail,
         password: password,
       );
-      _message = 'メールアカウントでログインしました。';
+      _message = 'AUTH_SIGNED_IN';
       await _tryEnsureProfile(client);
     }, actionLabel: 'メールログイン');
   }
@@ -177,7 +177,7 @@ class AuthSessionService extends ChangeNotifier {
         redirectTo: emailRedirectTo,
       );
       didSend = true;
-      _message = 'パスワード再設定メールを送信しました。メール内のリンクから新しいパスワードを設定してください。';
+      _message = 'AUTH_PASSWORD_RESET_SENT';
     }, actionLabel: 'パスワード再設定メール送信');
     return didSend && _errorMessage == null;
   }
@@ -194,7 +194,7 @@ class AuthSessionService extends ChangeNotifier {
     await _withAuthClient((client) async {
       await client.auth.updateUser(UserAttributes(password: password));
       _isPasswordRecovery = false;
-      _message = 'パスワードを更新しました。';
+      _message = 'AUTH_PASSWORD_UPDATED';
       await _tryEnsureProfile(client);
     }, actionLabel: 'パスワード更新');
   }
@@ -213,9 +213,9 @@ class AuthSessionService extends ChangeNotifier {
     try {
       await client.auth.signOut();
       _role = UserRole.free;
-      _message = 'ログアウトしました。';
+      _message = 'AUTH_SIGNED_OUT';
     } catch (error) {
-      _errorMessage = 'ログアウトに失敗しました: ${_friendlyError(error)}';
+      _errorMessage = 'AUTH_SIGN_OUT_FAILED|${_friendlyError(error)}';
       _message = null;
     } finally {
       _isLoading = false;
@@ -232,7 +232,7 @@ class AuthSessionService extends ChangeNotifier {
     required String actionLabel,
   }) async {
     if (!SupabaseService.isConfigured) {
-      _errorMessage = 'Supabaseが未設定のため、$actionLabelを利用できません。';
+      _errorMessage = 'AUTH_NOT_CONFIGURED';
       _message = null;
       notifyListeners();
       return;
@@ -254,7 +254,7 @@ class AuthSessionService extends ChangeNotifier {
       await action(client);
       _errorMessage = null;
     } catch (error) {
-      _errorMessage = '$actionLabelに失敗しました: ${_friendlyError(error)}';
+      _errorMessage = 'AUTH_ACTION_FAILED|${_friendlyError(error)}';
       _message = null;
     } finally {
       _isLoading = false;
@@ -267,10 +267,10 @@ class AuthSessionService extends ChangeNotifier {
       _errorMessage = null;
       if (event.event == AuthChangeEvent.passwordRecovery) {
         _isPasswordRecovery = true;
-        _message = '新しいパスワードを入力してください。';
+        _message = 'AUTH_ENTER_NEW_PASSWORD';
       } else if (event.session != null &&
           event.session!.user.isAnonymous == false) {
-        _message = '$providerLabelでログインしました。';
+        _message = 'AUTH_SIGNED_IN';
       } else {
         _role = UserRole.free;
         _isPasswordRecovery = false;
@@ -332,14 +332,14 @@ class AuthSessionService extends ChangeNotifier {
 
   String? _validateEmail(String email) {
     if (email.isEmpty || !email.contains('@')) {
-      return 'メールアドレスを入力してください。';
+      return 'AUTH_INVALID_EMAIL';
     }
     return null;
   }
 
   String? _validatePassword(String password) {
     if (password.length < 6) {
-      return 'パスワードは6文字以上で入力してください。';
+      return 'AUTH_PASSWORD_TOO_SHORT';
     }
     return null;
   }

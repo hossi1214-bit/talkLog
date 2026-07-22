@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../recording/models/record_entry.dart';
 import '../vocabulary/repositories/vocabulary_repository.dart';
 import 'models/ai_correction_result.dart';
@@ -7,10 +8,16 @@ import 'repositories/correction_repository.dart';
 import 'services/edge_function_correction_service.dart';
 
 class CorrectionResultPage extends StatefulWidget {
-  const CorrectionResultPage({required this.entry, this.onClose, super.key});
+  const CorrectionResultPage({
+    required this.entry,
+    this.onClose,
+    this.correctionRepository,
+    super.key,
+  });
 
   final RecordEntry entry;
   final VoidCallback? onClose;
+  final CorrectionRepository? correctionRepository;
 
   @override
   State<CorrectionResultPage> createState() => _CorrectionResultPageState();
@@ -18,7 +25,7 @@ class CorrectionResultPage extends StatefulWidget {
 
 class _CorrectionResultPageState extends State<CorrectionResultPage> {
   final _edgeCorrectionService = EdgeFunctionCorrectionService();
-  final _correctionRepository = CorrectionRepository();
+  late final CorrectionRepository _correctionRepository;
   final _vocabularyRepository = VocabularyRepository();
 
   Future<_CorrectionViewData>? _resultFuture;
@@ -27,6 +34,8 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
   @override
   void initState() {
     super.initState();
+    _correctionRepository =
+        widget.correctionRepository ?? CorrectionRepository();
     _resultFuture = _loadSavedOrAnalyze();
   }
 
@@ -36,8 +45,15 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
       if (saved != null) {
         return _CorrectionViewData(
           result: saved,
-          sourceLabel: '保存済み',
-          notice: '保存済みの添削結果を表示しています。',
+          sourceLabel: 'saved',
+          notice: null,
+        );
+      }
+      if (await _correctionRepository.hasSavedResult(widget.entry)) {
+        return const _CorrectionViewData(
+          result: null,
+          sourceLabel: 'mismatch',
+          notice: null,
         );
       }
     } catch (_) {
@@ -48,7 +64,7 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
 
   Future<_CorrectionViewData> _analyzeAndSync() async {
     final result = await _edgeCorrectionService.analyze(widget.entry);
-    const sourceLabel = 'Edge Function';
+    const sourceLabel = 'edge';
     String? notice;
 
     try {
@@ -57,9 +73,7 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
         result: result,
       );
     } catch (error) {
-      final saveError =
-          'クラウド保存に失敗しました。表示中の添削結果はこの画面で確認できます。原因: ${_friendlyError(error)}';
-      notice = saveError;
+      notice = _friendlyError(error);
     }
 
     return _CorrectionViewData(
@@ -86,14 +100,20 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
         notes: result.vocabularyNotes,
       );
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('語彙メモを単語帳に追加しました。')));
+        ).showSnackBar(SnackBar(content: Text(l10n.vocabularyAdded)));
       }
     } catch (error) {
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('単語帳への追加に失敗しました: ${_friendlyError(error)}')),
+          SnackBar(
+            content: Text(
+              l10n.vocabularyAddFailed(_localizedError(l10n, error)),
+            ),
+          ),
         );
       }
     } finally {
@@ -107,19 +127,20 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         leading: widget.onClose == null
             ? null
             : IconButton(
-                tooltip: '録音詳細へ戻る',
+                tooltip: l10n.backToRecordingDetails,
                 icon: const Icon(Icons.arrow_back),
                 onPressed: widget.onClose,
               ),
-        title: const Text('AI添削'),
+        title: Text(l10n.aiCorrectionTitle),
         actions: [
           IconButton(
-            tooltip: '再解析',
+            tooltip: l10n.reanalyze,
             icon: const Icon(Icons.refresh),
             onPressed: _reanalyze,
           ),
@@ -130,7 +151,7 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return _CorrectionErrorView(
-              message: _friendlyError(snapshot.error!),
+              message: _localizedError(l10n, snapshot.error!),
               onClose: widget.onClose ?? () => Navigator.of(context).maybePop(),
             );
           }
@@ -140,13 +161,16 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
 
           final viewData = snapshot.data!;
           final result = viewData.result;
+          if (result == null) {
+            return _SavedCorrectionMismatchView(onReanalyze: _reanalyze);
+          }
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
               _AnalysisSourceBanner(
                 sourceLabel: viewData.sourceLabel,
                 notice: viewData.notice,
-                onRetry: viewData.sourceLabel == 'デモ添削' ? _reanalyze : null,
+                onRetry: viewData.sourceLabel == 'demo' ? _reanalyze : null,
               ),
               const SizedBox(height: 12),
               _ScoreHeader(score: result.score),
@@ -158,7 +182,7 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.style_outlined),
-                label: const Text('語彙メモを単語帳に追加'),
+                label: Text(l10n.addVocabularyNotes),
                 onPressed: _isAddingVocabulary
                     ? null
                     : () => _addVocabulary(result),
@@ -166,37 +190,37 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
               const SizedBox(height: 12),
               _ResultSection(
                 icon: Icons.record_voice_over_outlined,
-                title: '文字起こし',
+                title: l10n.transcript,
                 child: Text(result.transcript),
               ),
               _ResultSection(
                 icon: Icons.edit_note,
-                title: '添削後の文',
+                title: l10n.correctedText,
                 child: Text(result.correctedText),
               ),
               _ResultSection(
                 icon: Icons.auto_awesome,
-                title: '自然な表現',
+                title: l10n.naturalExpression,
                 child: Text(result.naturalExpression),
               ),
               _ResultSection(
                 icon: Icons.translate,
-                title: '日本語訳',
-                child: Text(result.japaneseTranslation),
+                title: l10n.translation,
+                child: Text(result.translation),
               ),
               _ResultSection(
                 icon: Icons.menu_book_outlined,
-                title: '文法メモ',
+                title: l10n.grammarNotes,
                 child: _BulletList(items: result.grammarNotes),
               ),
               _ResultSection(
                 icon: Icons.style_outlined,
-                title: '語彙メモ',
+                title: l10n.vocabularyNotes,
                 child: _BulletList(items: result.vocabularyNotes),
               ),
               _ResultSection(
                 icon: Icons.favorite_outline,
-                title: '励ましコメント',
+                title: l10n.encouragement,
                 child: Text(result.encouragement),
               ),
             ],
@@ -211,12 +235,27 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
     if (message.contains('429') ||
         message.contains('Too Many Requests') ||
         message.contains('本日の無料AI添削回数')) {
-      return '本日の回数上限に達しました。';
+      return 'DAILY_AI_LIMIT_REACHED';
     }
     if (message.length <= 160) {
       return message;
     }
     return '${message.substring(0, 160)}...';
+  }
+
+  String _localizedError(AppLocalizations l10n, Object error) {
+    final message = _friendlyError(error);
+    return switch (message) {
+      'DAILY_AI_LIMIT_REACHED' ||
+      'DAILY_LIMIT_REACHED' => l10n.dailyAiLimitReached,
+      'NO_RECOGNIZABLE_SPEECH' => l10n.noRecognizableSpeech,
+      'UNSUPPORTED_LANGUAGE' => l10n.unsupportedCorrectionLanguage,
+      'ANALYSIS_FAILED' => l10n.analysisFailed,
+      'AUTH_REQUIRED' => l10n.correctionAuthRequired,
+      'NETWORK_ERROR' => l10n.networkError,
+      'INVALID_RESPONSE' => l10n.invalidServerResponse,
+      _ => l10n.analysisFailed,
+    };
   }
 }
 
@@ -228,6 +267,7 @@ class _CorrectionErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Center(
       child: Padding(
@@ -237,14 +277,64 @@ class _CorrectionErrorView extends StatelessWidget {
           children: [
             Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
-            Text('AI添削を読み込めませんでした', style: theme.textTheme.titleMedium),
+            Text(l10n.correctionLoadFailed, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
             FilledButton.icon(
               icon: const Icon(Icons.close),
-              label: const Text('閉じる'),
+              label: Text(l10n.close),
               onPressed: onClose,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SavedCorrectionMismatchView extends StatelessWidget {
+  const _SavedCorrectionMismatchView({required this.onReanalyze});
+
+  final VoidCallback onReanalyze;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.translate_outlined,
+              size: 52,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              l10n.savedCorrectionLanguageMismatchTitle,
+              style: theme.textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              l10n.savedCorrectionLanguageMismatchDescription,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              l10n.reanalysisConsumesUsage,
+              style: theme.textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              icon: const Icon(Icons.auto_awesome_outlined),
+              label: Text(l10n.reanalyzeInCurrentLanguage),
+              onPressed: onReanalyze,
             ),
           ],
         ),
@@ -260,7 +350,7 @@ class _CorrectionViewData {
     required this.notice,
   });
 
-  final AiCorrectionResult result;
+  final AiCorrectionResult? result;
   final String sourceLabel;
   final String? notice;
 }
@@ -278,9 +368,20 @@ class _AnalysisSourceBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isDemo = sourceLabel == 'デモ添削';
+    final isDemo = sourceLabel == 'demo';
+    final localizedSource = switch (sourceLabel) {
+      'saved' => l10n.savedResultSource,
+      'demo' => l10n.demoCorrectionSource,
+      _ => l10n.edgeFunctionSource,
+    };
+    final localizedNotice = sourceLabel == 'saved'
+        ? l10n.savedResultNotice
+        : notice == null
+        ? null
+        : l10n.correctionSaveFailed(notice!);
 
     return Card(
       child: Padding(
@@ -297,16 +398,19 @@ class _AnalysisSourceBanner extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('解析方法: $sourceLabel', style: theme.textTheme.titleSmall),
-                  if (notice != null) ...[
+                  Text(
+                    l10n.analysisMethod(localizedSource),
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  if (localizedNotice != null) ...[
                     const SizedBox(height: 4),
-                    Text(notice!, style: theme.textTheme.bodySmall),
+                    Text(localizedNotice, style: theme.textTheme.bodySmall),
                   ],
                   if (onRetry != null) ...[
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
                       icon: const Icon(Icons.refresh),
-                      label: const Text('もう一度本番解析'),
+                      label: Text(l10n.runFullAnalysisAgain),
                       onPressed: onRetry,
                     ),
                   ],
@@ -327,6 +431,7 @@ class _ScoreHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
@@ -358,9 +463,12 @@ class _ScoreHeader extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('AIスコア', style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    l10n.aiScore,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 4),
-                  const Text('発話の伝わりやすさ、自然さ、文法のバランスを評価します。'),
+                  Text(l10n.aiScoreDescription),
                 ],
               ),
             ),

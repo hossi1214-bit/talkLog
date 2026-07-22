@@ -35,7 +35,7 @@ class LearningStats {
   final Duration thisWeekDuration;
   final int previousWeekRecordings;
   final Duration previousWeekDuration;
-  final String mostActiveWeekday;
+  final int? mostActiveWeekday;
   final int mostActiveWeekdayRecordings;
   final int currentStreak;
   final int bestStreak;
@@ -170,9 +170,7 @@ class LearningStats {
       thisWeekDuration: thisWeekDuration,
       previousWeekRecordings: previousWeekEntries.length,
       previousWeekDuration: previousWeekDuration,
-      mostActiveWeekday: mostActiveWeekdayEntry == null
-          ? '-'
-          : _weekdayLabel(mostActiveWeekdayEntry.key),
+      mostActiveWeekday: mostActiveWeekdayEntry?.key,
       mostActiveWeekdayRecordings: mostActiveWeekdayEntry?.value ?? 0,
       currentStreak: currentStreak,
       bestStreak: bestStreak,
@@ -195,19 +193,6 @@ class LearningStats {
         return a.key.compareTo(b.key);
       });
     return entries.first;
-  }
-
-  static String _weekdayLabel(int weekday) {
-    return switch (weekday) {
-      DateTime.monday => '月曜日',
-      DateTime.tuesday => '火曜日',
-      DateTime.wednesday => '水曜日',
-      DateTime.thursday => '木曜日',
-      DateTime.friday => '金曜日',
-      DateTime.saturday => '土曜日',
-      DateTime.sunday => '日曜日',
-      _ => '-',
-    };
   }
 
   static DateTime _dateOnly(DateTime value) {

@@ -96,8 +96,8 @@ class RecordingStore extends ChangeNotifier {
       _lastSyncedAt = DateTime.now();
       await refreshAudioStorageUsage(notify: false);
       _lastSyncMessage = remoteEntries.isEmpty
-          ? 'クラウドに録音履歴はありません。'
-          : 'クラウドから${remoteEntries.length}件読み込みました';
+          ? 'RECORDINGS_CLOUD_EMPTY'
+          : 'RECORDINGS_DOWNLOADED|${remoteEntries.length}';
     } catch (error) {
       _lastSyncError = _friendlyError(error);
       _entries.clear();
@@ -152,8 +152,8 @@ class RecordingStore extends ChangeNotifier {
       _lastSyncedAt = DateTime.now();
       await refreshAudioStorageUsage(notify: false);
       _lastSyncMessage = importedCount == 0
-          ? 'クラウド同期が完了しました'
-          : 'クラウドから$importedCount件取り込みました';
+          ? 'RECORDINGS_SYNCED'
+          : 'RECORDINGS_IMPORTED|$importedCount';
     } catch (error) {
       _lastSyncError = _friendlyError(error);
     } finally {
@@ -168,7 +168,7 @@ class RecordingStore extends ChangeNotifier {
       _lastSyncedAt = DateTime.now();
       await refreshAudioStorageUsage(notify: false);
       _lastSyncError = null;
-      _lastSyncMessage = 'クラウド同期が完了しました';
+      _lastSyncMessage = 'RECORDINGS_SYNCED';
     } catch (error) {
       _lastSyncError = _friendlyError(error);
     } finally {

@@ -14,7 +14,7 @@ class SpeakingDraftService {
   }) async {
     final client = _client;
     if (client == null || client.auth.currentUser == null) {
-      throw const SpeakingDraftException('ログインが必要です。');
+      throw const SpeakingDraftException('DRAFT_AUTH_REQUIRED');
     }
 
     try {
@@ -40,45 +40,45 @@ class SpeakingDraftService {
       throw SpeakingDraftException(_errorMessageFor(error));
     }
 
-    throw const SpeakingDraftException('練習文を作成できませんでした。');
+    throw const SpeakingDraftException('DRAFT_FAILED');
   }
 
   String _errorMessageFor(Object? data) {
     final rawMessage = _rawErrorMessage(data);
     if (rawMessage == null || rawMessage.isEmpty) {
-      return '練習文を作成できませんでした。';
+      return 'DRAFT_FAILED';
     }
 
     final lower = rawMessage.toLowerCase();
     if (rawMessage.contains('japaneseText is required')) {
-      return '日本語で言いたいことを入力してください。';
+      return 'DRAFT_INPUT_REQUIRED';
     }
     if (rawMessage.contains('japaneseText is too long')) {
-      return '入力は500文字以内にしてください。';
+      return 'DRAFT_INPUT_TOO_LONG';
     }
     if (rawMessage.contains('OPENAI_API_KEY')) {
-      return 'AI変換の設定が未完了です。Supabase SecretsにOPENAI_API_KEYを登録してください。';
+      return 'DRAFT_API_NOT_CONFIGURED';
     }
     if (rawMessage.contains('Invalid user session') ||
         rawMessage.contains('Authorization') ||
         lower.contains('jwt')) {
-      return 'ログイン状態を確認してください。ログアウトして再ログインすると直る場合があります。';
+      return 'DRAFT_AUTH_REQUIRED';
     }
     if (lower.contains('function not found') ||
         lower.contains('404') ||
         lower.contains('not found')) {
-      return '練習文作成機能がまだサーバーに反映されていません。create-speaking-draftを再デプロイしてください。';
+      return 'DRAFT_FUNCTION_NOT_FOUND';
     }
     if (lower.contains('quota') ||
         lower.contains('billing') ||
         lower.contains('insufficient_quota')) {
-      return 'OpenAI APIの利用上限または請求設定を確認してください。';
+      return 'DRAFT_API_LIMIT';
     }
     if (lower.contains('network') || lower.contains('socket')) {
-      return '通信に失敗しました。ネットワーク接続を確認してください。';
+      return 'DRAFT_NETWORK_ERROR';
     }
 
-    return '練習文を作成できませんでした。原因: ${_truncate(rawMessage)}';
+    return 'DRAFT_FAILED';
   }
 
   String? _rawErrorMessage(Object? data) {
@@ -90,13 +90,6 @@ class SpeakingDraftService {
       return error?.toString();
     }
     return data?.toString();
-  }
-
-  String _truncate(String message) {
-    if (message.length <= 120) {
-      return message;
-    }
-    return '${message.substring(0, 120)}...';
   }
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../data/recording_store.dart';
 
 class SyncStatusBanner extends StatelessWidget {
@@ -9,6 +10,7 @@ class SyncStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final error = store.lastSyncError;
     if (!store.isSyncing && error == null) {
       return const SizedBox.shrink();
@@ -42,14 +44,14 @@ class SyncStatusBanner extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isError ? 'クラウド同期に失敗しました' : 'クラウド同期中です',
+                        isError ? l10n.syncFailedTitle : l10n.syncingTitle,
                         style: theme.textTheme.titleSmall?.copyWith(
                           color: isError ? colorScheme.onErrorContainer : null,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        isError ? error : '録音履歴をクラウドと同期しています。',
+                        isError ? error : l10n.syncingDescription,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: isError ? colorScheme.onErrorContainer : null,
                         ),
@@ -67,7 +69,7 @@ class SyncStatusBanner extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: FilledButton.icon(
                   icon: const Icon(Icons.refresh),
-                  label: const Text('再同期'),
+                  label: Text(l10n.syncRetry),
                   onPressed: store.syncAll,
                 ),
               ),

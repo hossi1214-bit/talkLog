@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../correction/repositories/correction_repository.dart';
 import '../recording/data/recording_store.dart';
 import '../settings/data/app_settings_store.dart';
+import '../settings/models/app_language.dart';
 import 'feedback_insight_detail_page.dart';
 import 'models/learning_stats.dart';
 import 'models/word_usage.dart';
@@ -19,7 +22,7 @@ class ProgressPage extends StatefulWidget {
 }
 
 class _ProgressPageState extends State<ProgressPage> {
-  static const _allLanguagesLabel = 'すべて';
+  static const _allLanguagesLabel = 'all';
 
   final _recordingStore = RecordingStore.instance;
   final _settingsStore = AppSettingsStore.instance;
@@ -42,7 +45,7 @@ class _ProgressPageState extends State<ProgressPage> {
   @override
   void initState() {
     super.initState();
-    _selectedLanguage = _settingsStore.learningLanguage;
+    _selectedLanguage = _settingsStore.learningLanguageCode;
     _recordingStore.addListener(_handleRecordingsChanged);
     _settingsStore.addListener(_handleSettingsChanged);
     _wordUsageFuture = _fetchTopWords();
@@ -63,7 +66,7 @@ class _ProgressPageState extends State<ProgressPage> {
       return;
     }
     setState(() {
-      _selectedLanguage = _settingsStore.learningLanguage;
+      _selectedLanguage = _settingsStore.learningLanguageCode;
       _wordUsageFuture = _fetchTopWords();
       _feedbackInsightsFuture = _fetchFeedbackInsights();
     });
@@ -81,7 +84,7 @@ class _ProgressPageState extends State<ProgressPage> {
       return;
     }
     setState(() {
-      _selectedLanguage = _settingsStore.learningLanguage;
+      _selectedLanguage = _settingsStore.learningLanguageCode;
       _wordUsageFuture = _fetchTopWords();
       _feedbackInsightsFuture = _fetchFeedbackInsights();
       _averageScore = 0;
@@ -152,7 +155,11 @@ class _ProgressPageState extends State<ProgressPage> {
     final entries = _selectedLanguage == null
         ? _recordingStore.entries
         : _recordingStore.entries
-              .where((entry) => entry.language == _selectedLanguage)
+              .where(
+                (entry) =>
+                    AppLanguage.parse(entry.language)?.code ==
+                    _selectedLanguage,
+              )
               .toList(growable: false);
     final stats = LearningStats.fromEntries(
       entries,
@@ -212,8 +219,9 @@ class _ProgressPageState extends State<ProgressPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('進捗')),
+      appBar: AppBar(title: Text(l10n.progressTitle)),
       body: !_recordingStore.isLoaded
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -277,14 +285,21 @@ class _LanguageFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final languages = [null, ...AppSettingsStore.supportedLanguages];
+    final l10n = AppLocalizations.of(context);
+    final languages = [null, ...AppLanguage.values.map((value) => value.code)];
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
         for (final language in languages)
           ChoiceChip(
-            label: Text(language ?? 'すべて'),
+            label: Text(
+              language == null
+                  ? l10n.all
+                  : l10n.languageName(
+                      language == 'zh-Hans' ? 'zhHans' : language,
+                    ),
+            ),
             selected: selectedLanguage == language,
             onSelected: (_) => onSelected(language),
           ),
@@ -306,15 +321,16 @@ class _SyncStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final text = isSyncing
-        ? '学習データを同期中...'
+        ? l10n.syncingLearningData
         : error != null
-        ? '学習データの同期に失敗しました: $error'
+        ? l10n.learningDataSyncFailed(error!)
         : syncedAt != null
-        ? '学習データ同期済み ${_formatTime(syncedAt!)}'
-        : '学習データは録音履歴から自動集計されます。';
+        ? l10n.learningDataSynced(_formatTime(context, syncedAt!))
+        : l10n.learningDataAutomatic;
 
     return Row(
       children: [
@@ -341,11 +357,10 @@ class _SyncStatus extends StatelessWidget {
     );
   }
 
-  String _formatTime(DateTime dateTime) {
-    final local = dateTime.toLocal();
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
+  String _formatTime(BuildContext context, DateTime dateTime) {
+    return DateFormat.Hm(
+      Localizations.localeOf(context).toLanguageTag(),
+    ).format(dateTime.toLocal());
   }
 }
 
@@ -356,25 +371,26 @@ class _SummaryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final items = [
       _MetricItem(
         icon: Icons.mic_none,
-        label: '総録音回数',
-        value: '${stats.totalRecordings}回',
+        label: l10n.totalRecordings,
+        value: l10n.recordingCount(stats.totalRecordings),
       ),
       _MetricItem(
         icon: Icons.timer_outlined,
-        label: '総録音時間',
-        value: _formatDuration(stats.totalDuration),
+        label: l10n.totalRecordingTime,
+        value: _formatDuration(l10n, stats.totalDuration),
       ),
       _MetricItem(
         icon: Icons.today_outlined,
-        label: '今日の録音',
-        value: '${stats.todayRecordings}回',
+        label: l10n.todayRecordingsTitle,
+        value: l10n.recordingCount(stats.todayRecordings),
       ),
       _MetricItem(
         icon: Icons.insights_outlined,
-        label: '平均スコア',
+        label: l10n.averageScore,
         value: stats.averageScore == 0 ? '-' : '${stats.averageScore}',
       ),
     ];
@@ -398,13 +414,13 @@ class _SummaryGrid extends StatelessWidget {
     );
   }
 
-  String _formatDuration(Duration duration) {
+  String _formatDuration(AppLocalizations l10n, Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     if (hours == 0) {
-      return '$minutes分';
+      return l10n.durationMinutes(minutes);
     }
-    return '$hours時間$minutes分';
+    return l10n.durationHoursMinutes(hours, minutes);
   }
 }
 
@@ -467,6 +483,7 @@ class _StreakPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Card(
       child: Padding(
@@ -482,10 +499,13 @@ class _StreakPanel extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('連続学習日数', style: theme.textTheme.titleMedium),
+                  Text(l10n.streakTitle, style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text(
-                    '現在 ${stats.currentStreak}日 / 最高 ${stats.bestStreak}日',
+                    l10n.currentAndBestStreak(
+                      l10n.streakDays(stats.currentStreak),
+                      l10n.streakDays(stats.bestStreak),
+                    ),
                     style: theme.textTheme.bodyMedium,
                   ),
                 ],
@@ -505,27 +525,28 @@ class _MonthlySummaryPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final items = [
       _MetricItem(
         icon: Icons.calendar_month_outlined,
-        label: '今月の録音',
-        value: '${stats.thisMonthRecordings}回',
+        label: l10n.monthlyRecordings,
+        value: l10n.recordingCount(stats.thisMonthRecordings),
       ),
       _MetricItem(
         icon: Icons.schedule_outlined,
-        label: '今月の時間',
-        value: _formatDuration(stats.thisMonthDuration),
+        label: l10n.monthlyTime,
+        value: _formatDuration(l10n, stats.thisMonthDuration),
       ),
       _MetricItem(
         icon: Icons.event_available_outlined,
-        label: '練習した日',
-        value: '${stats.activeDaysThisMonth}日',
+        label: l10n.practiceDays,
+        value: l10n.streakDays(stats.activeDaysThisMonth),
       ),
       _MetricItem(
         icon: Icons.av_timer_outlined,
-        label: '平均録音時間',
-        value: _formatDuration(stats.averageRecordingDuration),
+        label: l10n.averageRecordingTime,
+        value: _formatDuration(l10n, stats.averageRecordingDuration),
       ),
     ];
 
@@ -539,7 +560,7 @@ class _MonthlySummaryPanel extends StatelessWidget {
               children: [
                 Icon(Icons.insights_outlined, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text('今月のサマリー', style: theme.textTheme.titleMedium),
+                Text(l10n.monthlySummary, style: theme.textTheme.titleMedium),
               ],
             ),
             const SizedBox(height: 12),
@@ -567,16 +588,16 @@ class _MonthlySummaryPanel extends StatelessWidget {
     );
   }
 
-  String _formatDuration(Duration duration) {
+  String _formatDuration(AppLocalizations l10n, Duration duration) {
     if (duration.inSeconds == 0) {
-      return '0分';
+      return l10n.durationMinutes(0);
     }
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     if (hours == 0) {
-      return '$minutes分';
+      return l10n.durationMinutes(minutes);
     }
-    return '$hours時間$minutes分';
+    return l10n.durationHoursMinutes(hours, minutes);
   }
 }
 
@@ -631,13 +652,14 @@ class _LearningTrendPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final delta = stats.weeklyRecordingDelta;
     final deltaText = delta > 0
-        ? '+$delta回'
+        ? '+${l10n.recordingCount(delta)}'
         : delta == 0
-        ? '±0回'
-        : '$delta回';
+        ? l10n.recordingDelta(0)
+        : l10n.recordingDelta(delta);
     final deltaColor = delta >= 0
         ? theme.colorScheme.primary
         : theme.colorScheme.error;
@@ -652,7 +674,7 @@ class _LearningTrendPanel extends StatelessWidget {
               children: [
                 Icon(Icons.trending_up, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text('学習傾向', style: theme.textTheme.titleMedium),
+                Text(l10n.learningTrend, style: theme.textTheme.titleMedium),
               ],
             ),
             const SizedBox(height: 12),
@@ -660,14 +682,14 @@ class _LearningTrendPanel extends StatelessWidget {
               children: [
                 Expanded(
                   child: _TrendValue(
-                    label: '今週の録音',
-                    value: '${stats.thisWeekRecordings}回',
+                    label: l10n.thisWeekRecordings,
+                    value: l10n.recordingCount(stats.thisWeekRecordings),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _TrendValue(
-                    label: '先週との差',
+                    label: l10n.differenceFromLastWeek,
                     value: deltaText,
                     valueColor: deltaColor,
                   ),
@@ -679,39 +701,58 @@ class _LearningTrendPanel extends StatelessWidget {
               children: [
                 Expanded(
                   child: _TrendValue(
-                    label: '今週の時間',
-                    value: _formatDuration(stats.thisWeekDuration),
+                    label: l10n.thisWeekTime,
+                    value: _formatDuration(l10n, stats.thisWeekDuration),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _TrendValue(
-                    label: 'よく話す曜日',
-                    value: stats.mostActiveWeekdayRecordings == 0
+                    label: l10n.mostActiveDay,
+                    value: stats.mostActiveWeekday == null
                         ? '-'
-                        : stats.mostActiveWeekday,
+                        : _weekdayName(context, stats.mostActiveWeekday!),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            Text(stats.trendMessage, style: theme.textTheme.bodyMedium),
+            Text(_trendMessage(l10n), style: theme.textTheme.bodyMedium),
           ],
         ),
       ),
     );
   }
 
-  String _formatDuration(Duration duration) {
+  String _formatDuration(AppLocalizations l10n, Duration duration) {
     if (duration.inSeconds == 0) {
-      return '0分';
+      return l10n.durationMinutes(0);
     }
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     if (hours == 0) {
-      return '$minutes分';
+      return l10n.durationMinutes(minutes);
     }
-    return '$hours時間$minutes分';
+    return l10n.durationHoursMinutes(hours, minutes);
+  }
+
+  String _weekdayName(BuildContext context, int weekday) {
+    final monday = DateTime(2024, 1, 1);
+    return DateFormat.EEEE(
+      Localizations.localeOf(context).toLanguageTag(),
+    ).format(monday.add(Duration(days: weekday - DateTime.monday)));
+  }
+
+  String _trendMessage(AppLocalizations l10n) {
+    if (stats.totalRecordings == 0) return l10n.trendNoRecordings;
+    if (stats.weeklyRecordingDelta > 0) {
+      return l10n.trendImproving(stats.weeklyRecordingDelta);
+    }
+    if (stats.weeklyRecordingDelta == 0 && stats.thisWeekRecordings > 0) {
+      return l10n.trendSteady;
+    }
+    if (stats.thisWeekRecordings == 0) return l10n.trendNoRecordingsThisWeek;
+    return l10n.trendSlower;
   }
 }
 
@@ -768,6 +809,7 @@ class _FeedbackInsightsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Card(
       child: Padding(
@@ -782,7 +824,10 @@ class _FeedbackInsightsPanel extends StatelessWidget {
                   color: theme.colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
-                Text('よく出る添削ポイント', style: theme.textTheme.titleMedium),
+                Text(
+                  l10n.frequentCorrectionPoints,
+                  style: theme.textTheme.titleMedium,
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -797,7 +842,7 @@ class _FeedbackInsightsPanel extends StatelessWidget {
                 }
                 if (snapshot.hasError) {
                   return Text(
-                    '添削ポイントを読み込めませんでした: ${snapshot.error}',
+                    l10n.correctionPointsLoadFailed('${snapshot.error}'),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.error,
                     ),
@@ -807,7 +852,7 @@ class _FeedbackInsightsPanel extends StatelessWidget {
                 final insights = snapshot.data ?? const [];
                 if (insights.isEmpty) {
                   return Text(
-                    'AI添削済みの録音が増えると、よく出る文法・語彙の指摘が表示されます。',
+                    l10n.correctionPointsEmpty,
                     style: theme.textTheme.bodyMedium,
                   );
                 }
@@ -858,7 +903,10 @@ class _FeedbackInsightTile extends StatelessWidget {
               child: Text(insight.text, style: theme.textTheme.bodyMedium),
             ),
             const SizedBox(width: 8),
-            Text('${insight.count}回', style: theme.textTheme.bodySmall),
+            Text(
+              AppLocalizations.of(context).recordingCount(insight.count),
+              style: theme.textTheme.bodySmall,
+            ),
             const SizedBox(width: 4),
             const Icon(Icons.chevron_right, size: 18),
           ],
@@ -875,6 +923,7 @@ class _WeeklyChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final maxCount = stats.fold<int>(
       1,
@@ -888,7 +937,7 @@ class _WeeklyChart extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('過去7日間', style: theme.textTheme.titleMedium),
+            Text(l10n.lastSevenDays, style: theme.textTheme.titleMedium),
             const SizedBox(height: 16),
             SizedBox(
               height: 170,
@@ -922,7 +971,9 @@ class _DailyBar extends StatelessWidget {
     final ratio = stats.recordingCount == 0
         ? 0.04
         : stats.recordingCount / maxCount;
-    final label = '${stats.date.month}/${stats.date.day}';
+    final label = DateFormat.Md(
+      Localizations.localeOf(context).toLanguageTag(),
+    ).format(stats.date);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -963,6 +1014,7 @@ class _WordRankingPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Card(
       child: Padding(
@@ -977,7 +1029,7 @@ class _WordRankingPanel extends StatelessWidget {
                   color: theme.colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
-                Text('よく使う単語トップ10', style: theme.textTheme.titleMedium),
+                Text(l10n.topWords, style: theme.textTheme.titleMedium),
               ],
             ),
             const SizedBox(height: 12),
@@ -992,7 +1044,7 @@ class _WordRankingPanel extends StatelessWidget {
                 }
                 if (snapshot.hasError) {
                   return Text(
-                    '単語ランキングを読み込めませんでした: ${snapshot.error}',
+                    l10n.wordRankingLoadFailed('${snapshot.error}'),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.error,
                     ),
@@ -1002,7 +1054,7 @@ class _WordRankingPanel extends StatelessWidget {
                 final words = snapshot.data ?? const [];
                 if (words.isEmpty) {
                   return Text(
-                    '文字起こし済みの録音が増えると、よく使う単語と言い換え候補が表示されます。',
+                    l10n.wordRankingEmpty,
                     style: theme.textTheme.bodyMedium,
                   );
                 }
@@ -1056,7 +1108,10 @@ class _WordUsageTile extends StatelessWidget {
                   ),
                 ),
               ),
-              Text('${usage.count}回', style: theme.textTheme.bodySmall),
+              Text(
+                AppLocalizations.of(context).recordingCount(usage.count),
+                style: theme.textTheme.bodySmall,
+              ),
             ],
           ),
           if (usage.alternativeWords.isNotEmpty) ...[
@@ -1091,7 +1146,10 @@ class _EmptyHint extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Center(
-      child: Text('録音すると学習データがここに表示されます。', style: theme.textTheme.bodyMedium),
+      child: Text(
+        AppLocalizations.of(context).progressEmpty,
+        style: theme.textTheme.bodyMedium,
+      ),
     );
   }
 }

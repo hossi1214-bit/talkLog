@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../settings/data/app_settings_store.dart';
+import '../settings/models/app_language.dart';
 import 'models/vocabulary_item.dart';
 import 'repositories/vocabulary_repository.dart';
 
@@ -29,7 +32,7 @@ class _VocabularyPageState extends State<VocabularyPage> {
   @override
   void initState() {
     super.initState();
-    _selectedLanguage = _settingsStore.learningLanguage;
+    _selectedLanguage = _settingsStore.learningLanguageCode;
     _itemsFuture = _repository.fetchAll(language: _selectedLanguage);
     _settingsStore.addListener(_handleSettingsChanged);
     _loadSettings();
@@ -49,7 +52,7 @@ class _VocabularyPageState extends State<VocabularyPage> {
     }
     setState(() {
       final previousLanguage = _selectedLanguage;
-      _selectedLanguage = _settingsStore.learningLanguage;
+      _selectedLanguage = _settingsStore.learningLanguageCode;
       _itemsFuture = _repository.fetchAll(language: _selectedLanguage);
       if (previousLanguage != _selectedLanguage) {
         _cardResetKey++;
@@ -64,7 +67,7 @@ class _VocabularyPageState extends State<VocabularyPage> {
     }
     setState(() {
       final previousLanguage = _selectedLanguage;
-      _selectedLanguage = _settingsStore.learningLanguage;
+      _selectedLanguage = _settingsStore.learningLanguageCode;
       _itemsFuture = _repository.fetchAll(language: _selectedLanguage);
       if (previousLanguage != _selectedLanguage) {
         _cardResetKey++;
@@ -111,30 +114,32 @@ class _VocabularyPageState extends State<VocabularyPage> {
       word: edited.word,
       meaning: edited.meaning,
       example: edited.example,
+      exampleTranslation: edited.exampleTranslation,
     );
     _reload();
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('単語を更新しました。')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).wordUpdated)),
+      );
     }
   }
 
   Future<void> _confirmAndDeleteItem(VocabularyItem item) async {
+    final l10n = AppLocalizations.of(context);
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('単語を削除しますか？'),
-          content: Text('「${item.word}」を単語帳から削除します。この操作は取り消せません。'),
+          title: Text(l10n.deleteWordTitle),
+          content: Text(l10n.deleteWordDescription(item.word)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('キャンセル'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('削除'),
+              child: Text(l10n.delete),
             ),
           ],
         );
@@ -147,7 +152,7 @@ class _VocabularyPageState extends State<VocabularyPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('単語を削除しました。')));
+        ).showSnackBar(SnackBar(content: Text(l10n.wordDeleted)));
       }
     }
   }
@@ -231,12 +236,13 @@ class _VocabularyPageState extends State<VocabularyPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('単語帳'),
+        title: Text(l10n.vocabularyTitle),
         actions: [
           IconButton(
-            tooltip: '再読み込み',
+            tooltip: l10n.reload,
             icon: const Icon(Icons.refresh),
             onPressed: _reload,
           ),
@@ -325,9 +331,9 @@ class _VocabularyPageState extends State<VocabularyPage> {
               ),
               const SizedBox(height: 8),
               if (visibleItems.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 80),
-                  child: Center(child: Text('単語帳はまだ空です。添削結果の語彙メモから追加できます。')),
+                Padding(
+                  padding: const EdgeInsets.only(top: 80),
+                  child: Center(child: Text(l10n.vocabularyEmpty)),
                 )
               else
                 for (final item in visibleItems)
@@ -379,6 +385,7 @@ class _VocabularySearchAndSort extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Card(
       child: Padding(
@@ -393,12 +400,12 @@ class _VocabularySearchAndSort extends StatelessWidget {
                 suffixIcon: query.isEmpty
                     ? null
                     : IconButton(
-                        tooltip: '検索をクリア',
+                        tooltip: l10n.clearSearch,
                         icon: const Icon(Icons.close),
                         onPressed: onClearQuery,
                       ),
-                labelText: '単語帳を検索',
-                hintText: '先頭の文字で検索',
+                labelText: l10n.searchVocabulary,
+                hintText: l10n.vocabularySearchHint,
                 border: const OutlineInputBorder(),
               ),
               onChanged: onQueryChanged,
@@ -411,7 +418,7 @@ class _VocabularySearchAndSort extends StatelessWidget {
               children: [
                 for (final filter in _VocabularyDisplayFilter.values)
                   ChoiceChip(
-                    label: Text(filter.label),
+                    label: Text(filter.label(l10n)),
                     selected: displayFilter == filter,
                     onSelected: (_) => onDisplayFilterChanged(filter),
                   ),
@@ -422,7 +429,7 @@ class _VocabularySearchAndSort extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '$visibleCount / $totalCount 語を表示',
+                    l10n.wordsVisible(visibleCount, totalCount),
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
@@ -430,7 +437,7 @@ class _VocabularySearchAndSort extends StatelessWidget {
                   builder: (context, controller, child) {
                     return TextButton.icon(
                       icon: const Icon(Icons.sort),
-                      label: Text(sortMode.label),
+                      label: Text(sortMode.label(l10n)),
                       onPressed: () {
                         if (controller.isOpen) {
                           controller.close();
@@ -447,7 +454,7 @@ class _VocabularySearchAndSort extends StatelessWidget {
                             ? const Icon(Icons.check)
                             : const SizedBox(width: 24),
                         onPressed: () => onSortModeChanged(mode),
-                        child: Text(mode.label),
+                        child: Text(mode.label(l10n)),
                       ),
                   ],
                 ),
@@ -461,23 +468,27 @@ class _VocabularySearchAndSort extends StatelessWidget {
 }
 
 enum _VocabularyDisplayFilter {
-  all('すべて'),
-  pending('復習待ち'),
-  reviewed('復習済み');
+  all,
+  pending,
+  reviewed;
 
-  const _VocabularyDisplayFilter(this.label);
-
-  final String label;
+  String label(AppLocalizations l10n) => switch (this) {
+    _VocabularyDisplayFilter.all => l10n.all,
+    _VocabularyDisplayFilter.pending => l10n.reviewPending,
+    _VocabularyDisplayFilter.reviewed => l10n.reviewed,
+  };
 }
 
 enum _VocabularySortMode {
-  word('アルファベット順'),
-  createdAt('最近追加'),
-  reviewCount('復習回数');
+  word,
+  createdAt,
+  reviewCount;
 
-  const _VocabularySortMode(this.label);
-
-  final String label;
+  String label(AppLocalizations l10n) => switch (this) {
+    _VocabularySortMode.word => l10n.sortAlphabetical,
+    _VocabularySortMode.createdAt => l10n.sortRecentlyAdded,
+    _VocabularySortMode.reviewCount => l10n.sortReviewCount,
+  };
 }
 
 class _VocabularyFlipCard extends StatefulWidget {
@@ -503,6 +514,7 @@ class _VocabularyFlipCardState extends State<_VocabularyFlipCard> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -528,13 +540,13 @@ class _VocabularyFlipCardState extends State<_VocabularyFlipCard> {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      widget.item.language,
+                      _languageName(l10n, widget.item.learningLanguage),
                       style: theme.textTheme.labelMedium,
                     ),
                   ),
                   _ReviewMeta(item: widget.item),
                   PopupMenuButton<_VocabularyAction>(
-                    tooltip: 'その他',
+                    tooltip: l10n.more,
                     onSelected: (action) {
                       switch (action) {
                         case _VocabularyAction.edit:
@@ -543,14 +555,14 @@ class _VocabularyFlipCardState extends State<_VocabularyFlipCard> {
                           widget.onDelete();
                       }
                     },
-                    itemBuilder: (context) => const [
+                    itemBuilder: (context) => [
                       PopupMenuItem(
                         value: _VocabularyAction.edit,
-                        child: Text('編集'),
+                        child: Text(l10n.edit),
                       ),
                       PopupMenuItem(
                         value: _VocabularyAction.delete,
-                        child: Text('削除'),
+                        child: Text(l10n.delete),
                       ),
                     ],
                   ),
@@ -599,7 +611,7 @@ class _VocabularyCardFront extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          '単語',
+          AppLocalizations.of(context).wordLabel,
           style: theme.textTheme.labelLarge?.copyWith(color: accentColor),
         ),
         const SizedBox(height: 10),
@@ -612,7 +624,7 @@ class _VocabularyCardFront extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          'タップで解説を表示',
+          AppLocalizations.of(context).tapForExplanation,
           textAlign: TextAlign.center,
           style: theme.textTheme.bodySmall,
         ),
@@ -632,18 +644,34 @@ class _VocabularyCardBack extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('解説', style: theme.textTheme.labelLarge),
+        Text(
+          AppLocalizations.of(context).explanation,
+          style: theme.textTheme.labelLarge,
+        ),
         const SizedBox(height: 8),
         Text(item.meaning, style: theme.textTheme.bodyLarge),
         if (item.example != null && item.example!.isNotEmpty) ...[
           const SizedBox(height: 14),
-          Text('例文', style: theme.textTheme.labelLarge),
+          Text(
+            AppLocalizations.of(context).exampleSentence,
+            style: theme.textTheme.labelLarge,
+          ),
           const SizedBox(height: 6),
           Text(item.example!, style: theme.textTheme.bodyMedium),
         ],
+        if (item.exampleTranslation != null &&
+            item.exampleTranslation!.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            AppLocalizations.of(context).exampleTranslation,
+            style: theme.textTheme.labelLarge,
+          ),
+          const SizedBox(height: 6),
+          Text(item.exampleTranslation!, style: theme.textTheme.bodyMedium),
+        ],
         const SizedBox(height: 12),
         Text(
-          'タップで単語に戻る',
+          AppLocalizations.of(context).tapToReturnToWord,
           textAlign: TextAlign.center,
           style: theme.textTheme.bodySmall,
         ),
@@ -665,6 +693,7 @@ class _VocabularySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Card(
       child: Padding(
@@ -678,17 +707,20 @@ class _VocabularySummary extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '復習待ち $reviewCount語',
+                    l10n.pendingWordCount(reviewCount),
                     style: theme.textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
-                  Text('登録済み $totalCount語', style: theme.textTheme.bodySmall),
+                  Text(
+                    l10n.registeredWordCount(totalCount),
+                    style: theme.textTheme.bodySmall,
+                  ),
                 ],
               ),
             ),
             FilledButton.icon(
               icon: const Icon(Icons.school_outlined),
-              label: const Text('復習'),
+              label: Text(l10n.review),
               onPressed: onStartReview,
             ),
           ],
@@ -719,6 +751,7 @@ class _ReviewModeView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     if (items.isEmpty) {
       return ListView(
@@ -727,7 +760,7 @@ class _ReviewModeView extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: IconButton(
-              tooltip: '戻る',
+              tooltip: l10n.back,
               icon: const Icon(Icons.close),
               onPressed: onClose,
             ),
@@ -740,7 +773,10 @@ class _ReviewModeView extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Center(
-            child: Text('復習待ちの単語はありません。', style: theme.textTheme.titleMedium),
+            child: Text(
+              l10n.noWordsToReview,
+              style: theme.textTheme.titleMedium,
+            ),
           ),
         ],
       );
@@ -753,13 +789,13 @@ class _ReviewModeView extends StatelessWidget {
         Row(
           children: [
             IconButton(
-              tooltip: '戻る',
+              tooltip: l10n.back,
               icon: const Icon(Icons.close),
               onPressed: onClose,
             ),
             const Spacer(),
             Text(
-              '${index + 1} / ${items.length}',
+              l10n.reviewProgress(index + 1, items.length),
               style: theme.textTheme.labelLarge,
             ),
           ],
@@ -775,7 +811,7 @@ class _ReviewModeView extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        item.language,
+                        _languageName(l10n, item.learningLanguage),
                         style: theme.textTheme.labelMedium,
                       ),
                     ),
@@ -800,7 +836,10 @@ class _ReviewModeView extends StatelessWidget {
                           key: const ValueKey('meaning'),
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('意味', style: theme.textTheme.labelLarge),
+                            Text(
+                              l10n.meaning,
+                              style: theme.textTheme.labelLarge,
+                            ),
                             const SizedBox(height: 8),
                             Text(
                               item.meaning,
@@ -809,10 +848,26 @@ class _ReviewModeView extends StatelessWidget {
                             if (item.example != null &&
                                 item.example!.isNotEmpty) ...[
                               const SizedBox(height: 16),
-                              Text('例文', style: theme.textTheme.labelLarge),
+                              Text(
+                                l10n.exampleSentence,
+                                style: theme.textTheme.labelLarge,
+                              ),
                               const SizedBox(height: 8),
                               Text(
                                 item.example!,
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ],
+                            if (item.exampleTranslation != null &&
+                                item.exampleTranslation!.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                l10n.exampleTranslation,
+                                style: theme.textTheme.labelLarge,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                item.exampleTranslation!,
                                 style: theme.textTheme.bodyMedium,
                               ),
                             ],
@@ -822,7 +877,7 @@ class _ReviewModeView extends StatelessWidget {
                           key: const ValueKey('hidden'),
                           child: OutlinedButton.icon(
                             icon: const Icon(Icons.visibility_outlined),
-                            label: const Text('意味を見る'),
+                            label: Text(l10n.showMeaning),
                             onPressed: onShowMeaning,
                           ),
                         ),
@@ -837,7 +892,7 @@ class _ReviewModeView extends StatelessWidget {
             Expanded(
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.arrow_forward),
-                label: const Text('次へ'),
+                label: Text(l10n.next),
                 onPressed: onNext,
               ),
             ),
@@ -845,7 +900,7 @@ class _ReviewModeView extends StatelessWidget {
             Expanded(
               child: FilledButton.icon(
                 icon: const Icon(Icons.check),
-                label: const Text('覚えた'),
+                label: Text(l10n.remembered),
                 onPressed: onReviewed,
               ),
             ),
@@ -863,19 +918,22 @@ class _ReviewMeta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final lastReviewedAt = item.lastReviewedAt;
     final label = lastReviewedAt == null
-        ? '復習 ${item.reviewCount}回'
-        : '復習 ${item.reviewCount}回 / 最終 ${_formatDate(lastReviewedAt)}';
+        ? l10n.reviewCountOnly(item.reviewCount)
+        : l10n.reviewCountWithDate(
+            item.reviewCount,
+            _formatDate(context, lastReviewedAt),
+          );
     return Text(label, style: theme.textTheme.labelSmall);
   }
 
-  String _formatDate(DateTime dateTime) {
-    final local = dateTime.toLocal();
-    final month = local.month.toString().padLeft(2, '0');
-    final day = local.day.toString().padLeft(2, '0');
-    return '$month/$day';
+  String _formatDate(BuildContext context, DateTime dateTime) {
+    return DateFormat.yMd(
+      Localizations.localeOf(context).toLanguageTag(),
+    ).format(dateTime.toLocal());
   }
 }
 
@@ -892,6 +950,7 @@ class _VocabularyEditDialogState extends State<_VocabularyEditDialog> {
   late final TextEditingController _wordController;
   late final TextEditingController _meaningController;
   late final TextEditingController _exampleController;
+  late final TextEditingController _exampleTranslationController;
 
   @override
   void initState() {
@@ -899,6 +958,9 @@ class _VocabularyEditDialogState extends State<_VocabularyEditDialog> {
     _wordController = TextEditingController(text: widget.item.word);
     _meaningController = TextEditingController(text: widget.item.meaning);
     _exampleController = TextEditingController(text: widget.item.example ?? '');
+    _exampleTranslationController = TextEditingController(
+      text: widget.item.exampleTranslation ?? '',
+    );
   }
 
   @override
@@ -906,33 +968,42 @@ class _VocabularyEditDialogState extends State<_VocabularyEditDialog> {
     _wordController.dispose();
     _meaningController.dispose();
     _exampleController.dispose();
+    _exampleTranslationController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('単語を編集'),
+      title: Text(l10n.editWordTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _wordController,
-              decoration: const InputDecoration(labelText: '単語'),
+              decoration: InputDecoration(labelText: l10n.wordLabel),
               autofocus: true,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _meaningController,
-              decoration: const InputDecoration(labelText: '意味・解説'),
+              decoration: InputDecoration(labelText: l10n.meaningExplanation),
               minLines: 1,
               maxLines: 3,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _exampleController,
-              decoration: const InputDecoration(labelText: '例文'),
+              decoration: InputDecoration(labelText: l10n.exampleSentence),
+              minLines: 1,
+              maxLines: 3,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _exampleTranslationController,
+              decoration: InputDecoration(labelText: l10n.exampleTranslation),
               minLines: 1,
               maxLines: 3,
             ),
@@ -942,9 +1013,9 @@ class _VocabularyEditDialogState extends State<_VocabularyEditDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('キャンセル'),
+          child: Text(l10n.cancel),
         ),
-        FilledButton(onPressed: _submit, child: const Text('保存')),
+        FilledButton(onPressed: _submit, child: Text(l10n.save)),
       ],
     );
   }
@@ -953,9 +1024,11 @@ class _VocabularyEditDialogState extends State<_VocabularyEditDialog> {
     final word = _wordController.text.trim();
     final meaning = _meaningController.text.trim();
     if (word.isEmpty || meaning.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('単語と意味を入力してください。')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).wordAndMeaningRequired),
+        ),
+      );
       return;
     }
 
@@ -964,6 +1037,7 @@ class _VocabularyEditDialogState extends State<_VocabularyEditDialog> {
         word: word,
         meaning: meaning,
         example: _exampleController.text.trim(),
+        exampleTranslation: _exampleTranslationController.text.trim(),
       ),
     );
   }
@@ -974,11 +1048,13 @@ class _VocabularyEditData {
     required this.word,
     required this.meaning,
     required this.example,
+    required this.exampleTranslation,
   });
 
   final String word;
   final String meaning;
   final String example;
+  final String exampleTranslation;
 }
 
 enum _VocabularyAction { edit, delete }
@@ -994,18 +1070,26 @@ class _LanguageFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final languages = [null, ...AppSettingsStore.supportedLanguages];
+    final l10n = AppLocalizations.of(context);
+    final languages = [null, ...AppLanguage.values.map((value) => value.code)];
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
         for (final language in languages)
           ChoiceChip(
-            label: Text(language ?? 'すべて'),
+            label: Text(
+              language == null ? l10n.all : _languageName(l10n, language),
+            ),
             selected: selectedLanguage == language,
             onSelected: (_) => onSelected(language),
           ),
       ],
     );
   }
+}
+
+String _languageName(AppLocalizations l10n, String value) {
+  final code = AppLanguage.parse(value)?.code ?? value;
+  return l10n.languageName(code == 'zh-Hans' ? 'zhHans' : code);
 }

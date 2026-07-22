@@ -93,7 +93,7 @@ Response:
     "transcript": "...",
     "correctedText": "...",
     "naturalExpression": "...",
-    "japaneseTranslation": "...",
+    "translation": "...",
     "grammarNotes": ["..."],
     "vocabularyNotes": ["..."],
     "score": 82,

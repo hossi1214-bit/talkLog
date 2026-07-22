@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
 import 'controllers/record_controller.dart';
 import 'data/recording_store.dart';
 import 'models/record_entry.dart';
@@ -54,7 +55,7 @@ class _RecordPageState extends State<RecordPage> {
     if (intent.isEmpty) {
       setState(() {
         _draftText = null;
-        _draftError = '日本語で言いたいことを入力してください。';
+        _draftError = AppLocalizations.of(context).draftInputRequired;
       });
       return;
     }
@@ -68,7 +69,7 @@ class _RecordPageState extends State<RecordPage> {
     try {
       final draft = await _draftService.createDraft(
         japaneseText: intent,
-        language: _controller.learningLanguage,
+        language: _controller.learningLanguageCode,
       );
       if (!mounted) {
         return;
@@ -81,7 +82,7 @@ class _RecordPageState extends State<RecordPage> {
         return;
       }
       setState(() {
-        _draftError = _friendlyError(error);
+        _draftError = _localizedDraftError(AppLocalizations.of(context), error);
       });
     } finally {
       if (mounted) {
@@ -110,17 +111,24 @@ class _RecordPageState extends State<RecordPage> {
 
     final messenger = ScaffoldMessenger.of(context);
     messenger.removeCurrentSnackBar();
-    messenger.showSnackBar(const SnackBar(content: Text('録音を保存しました。')));
+    messenger.showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context).recordSaved)),
+    );
     widget.onRecordingSaved?.call(savedEntry);
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final languageCode = _controller.learningLanguageCode;
+    final languageName = l10n.languageName(
+      languageCode == 'zh-Hans' ? 'zhHans' : languageCode,
+    );
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: Scaffold(
-        appBar: AppBar(title: const Text('録音')),
+        appBar: AppBar(title: Text(l10n.recordTitle)),
         body: AnimatedBuilder(
           animation: _controller,
           builder: (context, _) {
@@ -143,17 +151,17 @@ class _RecordPageState extends State<RecordPage> {
                       children: [
                         Text(
                           _controller.isBusy
-                              ? '処理中です'
+                              ? l10n.recordStatusBusy
                               : _controller.isRecording
-                              ? '録音中'
-                              : '録音できます',
+                              ? l10n.recordStatusRecording
+                              : l10n.recordStatusReady,
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
-                        if (_controller.errorMessage != null) ...[
+                        if (_controller.errorKind != null) ...[
                           const SizedBox(height: 12),
                           Text(
-                            _controller.errorMessage!,
+                            _recordErrorMessage(l10n),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.error,
@@ -187,7 +195,7 @@ class _RecordPageState extends State<RecordPage> {
                           const SizedBox(height: 12),
                           OutlinedButton.icon(
                             icon: const Icon(Icons.close),
-                            label: const Text('録音をキャンセル'),
+                            label: Text(l10n.recordCancel),
                             onPressed: _controller.isBusy
                                 ? null
                                 : _controller.cancelRecording,
@@ -196,7 +204,7 @@ class _RecordPageState extends State<RecordPage> {
                         const SizedBox(height: 20),
                         _SpeakingDraftPanel(
                           controller: _intentController,
-                          language: _controller.learningLanguage,
+                          language: languageName,
                           draftText: _draftText,
                           errorText: _draftError,
                           isLoading: _isCreatingDraft,
@@ -208,15 +216,15 @@ class _RecordPageState extends State<RecordPage> {
                         const SizedBox(height: 20),
                         Text(
                           _controller.isBusy
-                              ? '少しお待ちください'
+                              ? l10n.recordHintBusy
                               : _controller.isRecording
-                              ? '練習文を見ながら話して、停止で保存します'
-                              : 'タップして録音開始',
+                              ? l10n.recordHintRecording
+                              : l10n.recordHintReady,
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
                         const SizedBox(height: 28),
-                        _LanguageChip(label: _controller.learningLanguage),
+                        _LanguageChip(label: languageName),
                         const SizedBox(height: 16),
                         SyncStatusBanner(store: _recordingStore),
                       ],
@@ -237,12 +245,32 @@ class _RecordPageState extends State<RecordPage> {
     return '$minutes:$seconds';
   }
 
-  String _friendlyError(Object error) {
-    final message = error.toString();
-    if (message.length <= 140) {
-      return message;
-    }
-    return '${message.substring(0, 140)}...';
+  String _localizedDraftError(AppLocalizations l10n, Object error) {
+    final code = error is SpeakingDraftException
+        ? error.message
+        : error.toString();
+    return switch (code) {
+      'DRAFT_AUTH_REQUIRED' => l10n.draftAuthRequired,
+      'DRAFT_INPUT_REQUIRED' => l10n.draftInputRequired,
+      'DRAFT_INPUT_TOO_LONG' => l10n.draftInputTooLong,
+      'DRAFT_API_NOT_CONFIGURED' => l10n.draftApiNotConfigured,
+      'DRAFT_FUNCTION_NOT_FOUND' => l10n.draftFunctionNotFound,
+      'DRAFT_API_LIMIT' => l10n.draftApiLimit,
+      'DRAFT_NETWORK_ERROR' => l10n.networkError,
+      _ => l10n.draftFailed,
+    };
+  }
+
+  String _recordErrorMessage(AppLocalizations l10n) {
+    final details = _controller.errorMessage ?? '';
+    return switch (_controller.errorKind) {
+      RecordErrorKind.permission => l10n.recordPermissionError,
+      RecordErrorKind.storageLimit => l10n.recordStorageLimitError,
+      RecordErrorKind.start => l10n.recordStartError(details),
+      RecordErrorKind.save => l10n.recordSaveError(details),
+      RecordErrorKind.cancel => l10n.recordCancelError(details),
+      null => '',
+    };
   }
 }
 
@@ -267,6 +295,7 @@ class _SpeakingDraftPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -285,7 +314,10 @@ class _SpeakingDraftPanel extends StatelessWidget {
                 const Icon(Icons.lightbulb_outline, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text('何を言うか考える', style: theme.textTheme.titleSmall),
+                  child: Text(
+                    l10n.draftTitle,
+                    style: theme.textTheme.titleSmall,
+                  ),
                 ),
               ],
             ),
@@ -310,10 +342,13 @@ class _SpeakingDraftPanel extends StatelessWidget {
                             color: colorScheme.primary,
                           ),
                           const SizedBox(width: 6),
-                          Text('見ながら話す文', style: theme.textTheme.labelLarge),
+                          Text(
+                            l10n.draftResultTitle,
+                            style: theme.textTheme.labelLarge,
+                          ),
                           const Spacer(),
                           IconButton(
-                            tooltip: 'クリア',
+                            tooltip: l10n.clear,
                             icon: const Icon(Icons.close),
                             onPressed: onClear,
                             visualDensity: VisualDensity.compact,
@@ -345,11 +380,11 @@ class _SpeakingDraftPanel extends StatelessWidget {
               onTapOutside: (_) =>
                   FocusManager.instance.primaryFocus?.unfocus(),
               decoration: InputDecoration(
-                labelText: '言いたいこと（日本語）',
-                hintText: '例: 今日は仕事で疲れたけど、英語の練習を続けたい',
+                labelText: l10n.draftInputLabel,
+                hintText: l10n.draftInputHint,
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
-                  tooltip: 'キーボードを閉じる',
+                  tooltip: l10n.hideKeyboard,
                   icon: const Icon(Icons.keyboard_hide_outlined),
                   onPressed: () =>
                       FocusManager.instance.primaryFocus?.unfocus(),
@@ -364,7 +399,9 @@ class _SpeakingDraftPanel extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.translate),
-              label: Text(isLoading ? '作成中...' : '$language の練習文を作る'),
+              label: Text(
+                isLoading ? l10n.draftCreating : l10n.draftCreate(language),
+              ),
               onPressed: onCreate,
             ),
             if (errorText != null) ...[

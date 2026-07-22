@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.46.1";
 type AnalyzeRequest = {
   recordingId?: string;
   language?: string;
+  learningLanguage?: string;
+  baseLocale?: string;
 };
 
 type RecordingRow = {
@@ -17,7 +19,7 @@ type CorrectionResult = {
   transcript: string;
   correctedText: string;
   naturalExpression: string;
-  japaneseTranslation: string;
+  translation: string;
   grammarNotes: string[];
   vocabularyNotes: string[];
   score: number;
@@ -34,8 +36,11 @@ declare const EdgeRuntime: {
 };
 
 const freeDailyAiCorrectionLimit = 5;
-
-const defaultLanguage = "スペイン語";
+const promptVersion = "2026-07-23-v1";
+const supportedLearningLanguages = new Set([
+  "ja", "en", "es", "fr", "de", "it", "ko", "zh-Hans",
+]);
+const supportedBaseLocales = new Set(["ja", "en", "es"]);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,24 +54,24 @@ Deno.serve(async (request) => {
   }
 
   if (request.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
+    return json({ error: "INVALID_REQUEST" }, 405);
   }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     if (!supabaseUrl || !supabaseAnonKey) {
-      return json({ error: "Supabase environment variables are missing" }, 500);
+      return json({ error: "ANALYSIS_FAILED" }, 500);
     }
 
     const authorization = request.headers.get("Authorization");
     if (!authorization) {
-      return json({ error: "Authorization header is required" }, 401);
+      return json({ error: "AUTH_REQUIRED" }, 401);
     }
 
     const body = (await request.json().catch(() => ({}))) as AnalyzeRequest;
     if (!body.recordingId) {
-      return json({ error: "recordingId is required" }, 400);
+      return json({ error: "INVALID_REQUEST" }, 400);
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -78,20 +83,20 @@ Deno.serve(async (request) => {
       error: userError,
     } = await supabase.auth.getUser();
     if (userError || !user) {
-      return json({ error: "Invalid user session" }, 401);
+      return json({ error: "AUTH_REQUIRED" }, 401);
     }
 
     const roleResult = await loadUserRole(supabase, user.id);
     if (roleResult.error) {
-      return json({ error: roleResult.error }, 500);
+      return json({ error: "ANALYSIS_FAILED" }, 500);
     }
     const quotaResult = await checkAiCorrectionQuota(supabase, user.id, roleResult.role);
     if (quotaResult.error) {
-      return json({ error: quotaResult.error }, 500);
+      return json({ error: "ANALYSIS_FAILED" }, 500);
     }
     if (!quotaResult.allowed) {
       return json({
-        error: "本日の無料AI添削回数を使い切りました。",
+        error: "DAILY_LIMIT_REACHED",
         role: roleResult.role,
         limit: quotaResult.limit,
         used: quotaResult.used,
@@ -106,31 +111,46 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (recordingError) {
-      return json({ error: recordingError.message }, 500);
+      return json({ error: "ANALYSIS_FAILED" }, 500);
     }
     if (!recordingData) {
-      return json({ error: "Recording not found" }, 404);
+      return json({ error: "RECORDING_NOT_FOUND" }, 404);
     }
 
     const recording = recordingData as RecordingRow;
-    const language = body.language ?? recording.language ?? defaultLanguage;
+    const learningLanguage = normalizeLanguageCode(
+      body.learningLanguage ?? body.language ?? recording.language ?? "es",
+    );
+    const baseLocale = normalizeLanguageCode(body.baseLocale ?? "ja");
+    if (!supportedLearningLanguages.has(learningLanguage) ||
+        !supportedBaseLocales.has(baseLocale) ||
+        learningLanguage === baseLocale) {
+      return json({ error: "UNSUPPORTED_LANGUAGE" }, 400);
+    }
     const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
     const result = openAiApiKey
       ? await analyzeWithOpenAI({
         apiKey: openAiApiKey,
         supabase,
         recording,
-        language,
+        learningLanguage,
+        baseLocale,
       })
-      : buildDemoResult(language);
+      : buildDemoResult(learningLanguage);
 
-    await saveResult({ supabase, recordingId: body.recordingId, language, result });
+    await saveResult({
+      supabase,
+      recordingId: body.recordingId,
+      language: learningLanguage,
+      baseLocale,
+      result,
+    });
 
     EdgeRuntime.waitUntil(
       updateWordUsage({
         supabase,
         userId: user.id,
-        language,
+        language: learningLanguage,
         transcript: result.transcript,
         vocabularyNotes: result.vocabularyNotes,
         apiKey: openAiApiKey ?? undefined,
@@ -142,11 +162,17 @@ Deno.serve(async (request) => {
 
     return json({
       source: openAiApiKey ? "openai" : "demo",
-      result,
+      result: {
+        ...result,
+        learningLanguage,
+        baseLocale,
+        promptVersion,
+      },
       wordUsageWarning: null,
     });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
+    const code = stableErrorCode(error);
+    return json({ error: code }, code === "AUTH_REQUIRED" ? 401 : 500);
   }
 });
 
@@ -154,19 +180,31 @@ async function analyzeWithOpenAI({
   apiKey,
   supabase,
   recording,
-  language,
+  learningLanguage,
+  baseLocale,
 }: {
   apiKey: string;
   supabase: ReturnType<typeof createClient>;
   recording: RecordingRow;
-  language: string;
+  learningLanguage: string;
+  baseLocale: string;
 }): Promise<CorrectionResult> {
   if (!recording.audio_path) {
     throw new Error("NO_RECOGNIZABLE_SPEECH");
   }
 
-  const transcript = await transcribeAudio({ apiKey, supabase, recording });
-  const result = await createCorrection({ apiKey, transcript, language });
+  const transcript = await transcribeAudio({
+    apiKey,
+    supabase,
+    recording,
+    learningLanguage,
+  });
+  const result = await createCorrection({
+    apiKey,
+    transcript,
+    learningLanguage,
+    baseLocale,
+  });
   return { ...result, transcript };
 }
 
@@ -174,10 +212,12 @@ async function transcribeAudio({
   apiKey,
   supabase,
   recording,
+  learningLanguage,
 }: {
   apiKey: string;
   supabase: ReturnType<typeof createClient>;
   recording: RecordingRow;
+  learningLanguage: string;
 }): Promise<string> {
   const { data: audioBlob, error } = await supabase.storage
     .from("recordings")
@@ -194,6 +234,7 @@ async function transcribeAudio({
   formData.append("file", file);
   formData.append("model", Deno.env.get("OPENAI_TRANSCRIPTION_MODEL") ?? "gpt-4o-mini-transcribe");
   formData.append("response_format", "json");
+  formData.append("language", transcriptionLanguageCode(learningLanguage));
 
   const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
@@ -215,11 +256,13 @@ async function transcribeAudio({
 async function createCorrection({
   apiKey,
   transcript,
-  language,
+  learningLanguage,
+  baseLocale,
 }: {
   apiKey: string;
   transcript: string;
-  language: string;
+  learningLanguage: string;
+  baseLocale: string;
 }): Promise<Omit<CorrectionResult, "transcript">> {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -233,15 +276,16 @@ async function createCorrection({
         {
           role: "system",
           content:
-            "You are TalkLog, a supportive speaking coach for Japanese learners. Return only valid JSON that matches the schema. Keep feedback concise, specific, and encouraging.",
+            "You are TalkLog, a supportive multilingual speaking coach. Return only valid JSON that matches the schema. Keep feedback concise, specific, and encouraging.",
         },
         {
           role: "user",
           content: [
-            `Learning language: ${language}`,
+            `Learning language: ${learningLanguage}`,
+            `Explanation language: ${baseLocale}`,
             `Transcript: ${transcript}`,
-            "Please correct the utterance, suggest a more natural expression, translate it into Japanese, explain grammar and vocabulary points in Japanese, score it from 0 to 100, and add one encouraging comment in Japanese.",
-            "Each vocabularyNotes item must include both the target word or phrase and a Japanese explanation in this exact format: word or phrase: Japanese explanation. Do not return a word alone.",
+            "Keep correctedText and naturalExpression in the learning language. Put the translation, grammar notes, vocabulary explanations, and encouragement in the explanation language. Score the utterance from 0 to 100.",
+            "Each vocabularyNotes item must include both the target word or phrase and an explanation in the explanation language, formatted as: word or phrase: explanation. Do not return a word alone.",
           ].join("\n"),
         },
       ],
@@ -275,11 +319,13 @@ async function saveResult({
   supabase,
   recordingId,
   language,
+  baseLocale,
   result,
 }: {
   supabase: ReturnType<typeof createClient>;
   recordingId: string;
   language: string;
+  baseLocale: string;
   result: CorrectionResult;
 }) {
   const { error: transcriptError } = await supabase.from("transcripts").upsert(
@@ -300,14 +346,20 @@ async function saveResult({
       recording_id: recordingId,
       corrected_text: result.correctedText,
       natural_expression: result.naturalExpression,
-      translation_ja: result.japaneseTranslation,
+      translation_ja: result.translation,
       grammar_feedback: result.grammarNotes,
       vocabulary_feedback: result.vocabularyNotes,
       score: result.score,
       comment: result.encouragement,
+      learning_language: language,
+      base_locale: baseLocale,
+      prompt_version: promptVersion,
       created_at: new Date().toISOString(),
     },
-    { onConflict: "recording_id" },
+    {
+      onConflict:
+        "recording_id,learning_language,base_locale,prompt_version",
+    },
   );
   if (feedbackError) {
     throw new Error(feedbackError.message);
@@ -646,8 +698,46 @@ function parseUserRole(value: unknown): UserRole {
   return "FREE";
 }
 
+function normalizeLanguageCode(value: string): string {
+  const normalized = value.trim();
+  const legacyLabels: Record<string, string> = {
+    "日本語": "ja",
+    "英語": "en",
+    "スペイン語": "es",
+    "フランス語": "fr",
+    "ドイツ語": "de",
+    "イタリア語": "it",
+    "韓国語": "ko",
+    "中国語": "zh-Hans",
+  };
+  return legacyLabels[normalized] ?? normalized;
+}
+
+function transcriptionLanguageCode(language: string): string {
+  return language === "zh-Hans" ? "zh" : language;
+}
+
 function canUsePremiumFeature(role: UserRole): boolean {
   return ["PREMIUM", "TESTER", "ADMIN"].includes(role);
+}
+
+function stableErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("NO_RECOGNIZABLE_SPEECH")) {
+    return "NO_RECOGNIZABLE_SPEECH";
+  }
+  if (message.includes("UNSUPPORTED_LANGUAGE")) {
+    return "UNSUPPORTED_LANGUAGE";
+  }
+  if (message.includes("AUTH_REQUIRED") ||
+      message.includes("Invalid user session") ||
+      message.toLowerCase().includes("jwt")) {
+    return "AUTH_REQUIRED";
+  }
+  if (message.includes("429") || message.includes("Too Many Requests")) {
+    return "DAILY_LIMIT_REACHED";
+  }
+  return "ANALYSIS_FAILED";
 }
 
 function isAdmin(role: UserRole): boolean {
@@ -706,7 +796,7 @@ function normalizeCorrectionResult(value: Partial<CorrectionResult>): Omit<Corre
   return {
     correctedText: stringValue(value.correctedText),
     naturalExpression: stringValue(value.naturalExpression),
-    japaneseTranslation: stringValue(value.japaneseTranslation),
+    translation: stringValue(value.translation),
     grammarNotes: stringArray(value.grammarNotes),
     vocabularyNotes: stringArray(value.vocabularyNotes),
     score: clampScore(value.score),
@@ -767,7 +857,7 @@ const correctionSchema = {
   required: [
     "correctedText",
     "naturalExpression",
-    "japaneseTranslation",
+    "translation",
     "grammarNotes",
     "vocabularyNotes",
     "score",
@@ -776,7 +866,7 @@ const correctionSchema = {
   properties: {
     correctedText: { type: "string" },
     naturalExpression: { type: "string" },
-    japaneseTranslation: { type: "string" },
+    translation: { type: "string" },
     grammarNotes: {
       type: "array",
       minItems: 1,
@@ -804,7 +894,7 @@ function buildDemoResult(language: string): CorrectionResult {
     transcript,
     correctedText: correctedTextFor(language),
     naturalExpression: naturalExpressionFor(language),
-    japaneseTranslation: "今日はカフェに行ってコーヒーを飲みました。とてもおいしかったです。",
+    translation: "今日はカフェに行ってコーヒーを飲みました。とてもおいしかったです。",
     grammarNotes: grammarNotesFor(language),
     vocabularyNotes: vocabularyNotesFor(language),
     score: 82,

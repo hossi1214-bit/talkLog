@@ -8,8 +8,9 @@ TalkLog の Supabase 準備メモです。
 2. SQL Editor で `docs/supabase_schema.sql` を実行する。
 3. 既存DBに権限設計を追加する場合は `docs/supabase_migration_user_roles.sql` を実行する。
 4. 既存DBで容量メーターを使う場合は `docs/supabase_migration_recording_audio_size.sql` を実行する。
-5. Storage に `recordings` bucket が作られていることを確認する。
-6. Authentication でメールログインを利用できるようにする。
+5. 既存DBで多言語設定を使う場合は `docs/supabase_migration_multilingual_settings.sql` を実行する。
+6. Storage に `recordings` bucket が作られていることを確認する。
+7. Authentication でメールログインを利用できるようにする。
 
 現在の Flutter 側は、未ログイン時は設定画面のみ利用できます。録音・履歴・単語帳・進捗はメールログイン後に利用します。
 

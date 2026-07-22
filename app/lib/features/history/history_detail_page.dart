@@ -2,14 +2,17 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/utils/japan_time.dart';
+import '../../l10n/app_localizations.dart';
 
 import '../correction/correction_result_page.dart';
 import '../correction/repositories/correction_repository.dart';
 import '../recording/data/recording_store.dart';
 import '../recording/models/record_entry.dart';
 import '../recording/repositories/recording_repository.dart';
+import '../settings/models/app_language.dart';
 
 class HistoryDetailPage extends StatefulWidget {
   const HistoryDetailPage({
@@ -96,6 +99,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (_showCorrection) {
       return CorrectionResultPage(
         entry: widget.entry,
@@ -110,19 +114,19 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
         leading: widget.onClose == null
             ? null
             : IconButton(
-                tooltip: '履歴へ戻る',
+                tooltip: l10n.backToHistory,
                 icon: const Icon(Icons.arrow_back),
                 onPressed: widget.onClose,
               ),
-        title: const Text('録音の詳細'),
+        title: Text(l10n.recordingDetailsTitle),
         actions: [
           IconButton(
-            tooltip: '状態を更新',
+            tooltip: l10n.refreshStatus,
             icon: const Icon(Icons.refresh),
             onPressed: _reloadStatus,
           ),
           IconButton(
-            tooltip: '削除',
+            tooltip: l10n.delete,
             icon: const Icon(Icons.delete_outline),
             onPressed: _isDeleting ? null : _confirmAndDeleteEntry,
           ),
@@ -145,37 +149,37 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
           const SizedBox(height: 16),
           _DetailRow(
             icon: Icons.timer_outlined,
-            label: '録音時間',
+            label: l10n.recordingDuration,
             value: _formatDuration(entry.duration),
           ),
           const SizedBox(height: 12),
           _DetailRow(
             icon: Icons.translate,
-            label: '学習言語',
-            value: entry.language,
+            label: l10n.learningLanguage,
+            value: _languageName(l10n, entry.language),
           ),
           const SizedBox(height: 12),
           _DetailRow(
             icon: Icons.folder_outlined,
-            label: '音声ファイル',
+            label: l10n.audioFile,
             value: entry.audioPath,
           ),
           const SizedBox(height: 28),
           FilledButton.icon(
             icon: const Icon(Icons.auto_awesome),
-            label: const Text('AI添削を見る'),
+            label: Text(l10n.viewAiCorrection),
             onPressed: _openCorrectionResult,
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
             icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-            label: Text(_isPlaying ? '一時停止' : '再生'),
+            label: Text(_isPlaying ? l10n.pause : l10n.play),
             onPressed: _togglePlayback,
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             icon: const Icon(Icons.delete_outline),
-            label: const Text('録音を削除'),
+            label: Text(l10n.deleteRecording),
             onPressed: _isDeleting ? null : _confirmAndDeleteEntry,
           ),
         ],
@@ -198,6 +202,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
   }
 
   Future<void> _togglePlayback() async {
+    final l10n = AppLocalizations.of(context);
     if (_isPlaying) {
       await _player.pause();
       return;
@@ -209,7 +214,7 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('音声ファイルが見つかりません。')));
+      ).showSnackBar(SnackBar(content: Text(l10n.audioFileMissing)));
       return;
     }
 
@@ -218,20 +223,21 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
   }
 
   Future<void> _confirmAndDeleteEntry() async {
+    final l10n = AppLocalizations.of(context);
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('録音を削除しますか？'),
-          content: const Text('この操作は取り消せません。音声ファイルとクラウド上の録音データも削除されます。'),
+          title: Text(l10n.deleteRecordingTitle),
+          content: Text(l10n.deleteRecordingDescription),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('キャンセル'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('削除'),
+              child: Text(l10n.delete),
             ),
           ],
         );
@@ -261,17 +267,20 @@ class _HistoryDetailPageState extends State<HistoryDetailPage> {
 
   String _formatDateTime(DateTime dateTime) {
     final local = JapanTime.from(dateTime);
-    final month = local.month.toString().padLeft(2, '0');
-    final day = local.day.toString().padLeft(2, '0');
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-    return '${local.year}/$month/$day $hour:$minute';
+    return DateFormat.yMd(
+      Localizations.localeOf(context).toLanguageTag(),
+    ).add_Hm().format(local);
   }
 
   String _formatDuration(Duration duration) {
     final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  String _languageName(AppLocalizations l10n, String value) {
+    final code = AppLanguage.parse(value)?.code ?? value;
+    return l10n.languageName(code == 'zh-Hans' ? 'zhHans' : code);
   }
 }
 
@@ -292,6 +301,7 @@ class _StatusPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isLoading = status == null;
     final isSynced = status?.isSynced ?? false;
     final hasCorrection = status?.hasCorrection ?? false;
@@ -311,22 +321,24 @@ class _StatusPanel extends StatelessWidget {
                   ? Icons.cloud_done_outlined
                   : Icons.cloud_off_outlined,
               label: isLoading
-                  ? '状態確認中'
+                  ? l10n.checkingStatus
                   : isSynced
-                  ? 'クラウド同期済み'
-                  : '未同期',
+                  ? l10n.cloudSynced
+                  : l10n.notSynced,
             ),
             _StatusChip(
               icon: hasCorrection
                   ? Icons.auto_awesome
                   : Icons.auto_awesome_outlined,
-              label: hasCorrection ? '添削保存済み' : '未添削',
+              label: hasCorrection ? l10n.correctionSaved : l10n.notCorrected,
             ),
             _StatusChip(
               icon: canAnalyze
                   ? Icons.check_circle_outline
                   : Icons.info_outline,
-              label: canAnalyze ? 'AI解析可能' : '同期後にAI解析可能',
+              label: canAnalyze
+                  ? l10n.aiAnalysisAvailable
+                  : l10n.aiAnalysisAfterSync,
             ),
           ],
         ),

@@ -58,5 +58,9 @@ void main() {
     expect(stats.thisMonthRecordings, greaterThanOrEqualTo(4));
     expect(stats.averageRecordingDuration, const Duration(seconds: 50));
     expect(stats.mostActiveWeekdayRecordings, greaterThanOrEqualTo(2));
+    final expectedMostActiveWeekday = today.weekday < yesterday.weekday
+        ? today.weekday
+        : yesterday.weekday;
+    expect(stats.mostActiveWeekday, expectedMostActiveWeekday);
   });
 }

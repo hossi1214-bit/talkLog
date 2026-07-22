@@ -2,9 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/services/auth_session_service.dart';
+import '../../l10n/app_localizations.dart';
 import '../progress/models/learning_stats.dart';
 import '../recording/data/recording_store.dart';
 import '../settings/data/app_settings_store.dart';
+import '../settings/models/app_language.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({this.onStartRecording, super.key});
@@ -50,13 +52,17 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final language = _settingsStore.learningLanguage;
+    final l10n = AppLocalizations.of(context);
+    final language = _settingsStore.learningLanguageValue;
     final languageEntries = _recordingStore.entries
-        .where((entry) => entry.language == language)
+        .where((entry) => AppLanguage.parse(entry.language) == language)
         .toList(growable: false);
     final stats = LearningStats.fromEntries(
       languageEntries,
-      language: language,
+      language: language.code,
+    );
+    final languageName = l10n.languageName(
+      language.code == 'zh-Hans' ? 'zhHans' : language.code,
     );
 
     return Scaffold(
@@ -67,12 +73,12 @@ class _HomePageState extends State<HomePage> {
               padding: const EdgeInsets.all(20),
               children: [
                 Text(
-                  '今日も少し話してみましょう。',
+                  l10n.homeGreeting,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '現在の学習言語: $language',
+                  l10n.currentLearningLanguage(languageName),
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 16),
@@ -90,39 +96,39 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 12),
                 _InfoCard(
                   icon: Icons.local_fire_department_outlined,
-                  title: '現在のストリーク',
-                  value: '${stats.currentStreak}日',
+                  title: l10n.currentStreakTitle,
+                  value: l10n.streakDays(stats.currentStreak),
                 ),
                 const SizedBox(height: 12),
                 _InfoCard(
                   icon: Icons.mic_none,
-                  title: '今日の録音',
-                  value: '${stats.todayRecordings}件',
+                  title: l10n.todayRecordingsTitle,
+                  value: l10n.recordingCount(stats.todayRecordings),
                 ),
                 const SizedBox(height: 12),
                 _InfoCard(
                   icon: Icons.timer_outlined,
-                  title: '累計録音時間',
-                  value: _formatDuration(stats.totalDuration),
+                  title: l10n.totalRecordingTimeTitle,
+                  value: _formatDuration(l10n, stats.totalDuration),
                 ),
                 const SizedBox(height: 12),
-                const _InfoCard(
+                _InfoCard(
                   icon: Icons.assignment_outlined,
-                  title: '今日の小さなお題',
-                  value: '今日よかったことを1つ、学習中の言語で話してみましょう。',
+                  title: l10n.todayPromptTitle,
+                  value: l10n.todayPromptBody,
                 ),
               ],
             ),
     );
   }
 
-  String _formatDuration(Duration duration) {
+  String _formatDuration(AppLocalizations l10n, Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     if (hours == 0) {
-      return '$minutes分';
+      return l10n.durationMinutes(minutes);
     }
-    return '$hours時間$minutes分';
+    return l10n.durationHoursMinutes(hours, minutes);
   }
 }
 
@@ -139,6 +145,7 @@ class _AudioStorageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final remainingBytes = (_freeLimitBytes - usedBytes).clamp(
       0,
@@ -159,7 +166,10 @@ class _AudioStorageCard extends StatelessWidget {
               children: [
                 Icon(Icons.storage_outlined, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text('音声ストレージ', style: theme.textTheme.titleMedium),
+                Text(
+                  l10n.audioStorageTitle,
+                  style: theme.textTheme.titleMedium,
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -174,17 +184,22 @@ class _AudioStorageCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               hasUnlimitedStorage
-                  ? '${_formatBytes(usedBytes)} 使用中 / Premium容量'
-                  : '${_formatBytes(usedBytes)} / ${_formatBytes(_freeLimitBytes)} 使用中',
+                  ? l10n.storagePremiumUsage(_formatBytes(usedBytes))
+                  : l10n.storageFreeUsage(
+                      _formatBytes(usedBytes),
+                      _formatBytes(_freeLimitBytes),
+                    ),
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 6),
             Text(
               hasUnlimitedStorage
-                  ? 'Premium権限のため、容量を気にせず保存できます。'
+                  ? l10n.storagePremiumDescription
                   : isLow
-                  ? '残り${_formatBytes(remainingBytes)}です。Premiumなら容量を気にせず保存できます。'
-                  : '残り${_formatBytes(remainingBytes)}です。録音を続けるほど音声ログが積み上がります。',
+                  ? l10n.storageLowDescription(_formatBytes(remainingBytes))
+                  : l10n.storageRemainingDescription(
+                      _formatBytes(remainingBytes),
+                    ),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: isLow ? theme.colorScheme.error : null,
               ),
@@ -212,8 +227,9 @@ class _TodayActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final message = _messageFor(stats);
+    final message = _messageFor(l10n, stats);
     final icon = stats.todayRecordings > 0
         ? Icons.check_circle_outline
         : Icons.radio_button_unchecked;
@@ -230,7 +246,7 @@ class _TodayActionCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('今日の一歩', style: theme.textTheme.titleMedium),
+                  Text(l10n.todayStepTitle, style: theme.textTheme.titleMedium),
                   const SizedBox(height: 6),
                   Text(message, style: theme.textTheme.bodyMedium),
                   const SizedBox(height: 12),
@@ -239,7 +255,7 @@ class _TodayActionCard extends StatelessWidget {
                     child: FilledButton.icon(
                       onPressed: onStartRecording,
                       icon: const Icon(Icons.mic),
-                      label: const Text('録音を始める'),
+                      label: Text(l10n.startRecording),
                     ),
                   ),
                 ],
@@ -251,17 +267,17 @@ class _TodayActionCard extends StatelessWidget {
     );
   }
 
-  String _messageFor(LearningStats stats) {
+  String _messageFor(AppLocalizations l10n, LearningStats stats) {
     if (stats.todayRecordings == 0 && stats.currentStreak == 0) {
-      return 'まずは30秒だけ録音して、今日の学習記録を作りましょう。';
+      return l10n.todayStartMessage;
     }
     if (stats.todayRecordings == 0) {
-      return '連続記録を続けるチャンスです。短い録音を1本だけ足しましょう。';
+      return l10n.todayKeepStreakMessage;
     }
     if (stats.todayRecordings == 1) {
-      return '今日の録音は完了しています。余裕があれば、理由や感想を足してもう1本話してみましょう。';
+      return l10n.todayOneDoneMessage;
     }
-    return '今日はすでに${stats.todayRecordings}本録音できています。よいペースです。';
+    return l10n.todayManyDoneMessage(stats.todayRecordings);
   }
 }
 
@@ -272,13 +288,12 @@ class _LearningPaceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final delta = stats.weeklyRecordingDelta;
     final deltaText = delta > 0
-        ? '+$delta回'
-        : delta == 0
-        ? '±0回'
-        : '$delta回';
+        ? '+${l10n.recordingCount(delta)}'
+        : l10n.recordingDelta(delta);
     final deltaColor = delta >= 0
         ? theme.colorScheme.primary
         : theme.colorScheme.error;
@@ -293,7 +308,7 @@ class _LearningPaceCard extends StatelessWidget {
               children: [
                 Icon(Icons.trending_up, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text('今週のペース', style: theme.textTheme.titleMedium),
+                Text(l10n.weeklyPaceTitle, style: theme.textTheme.titleMedium),
               ],
             ),
             const SizedBox(height: 12),
@@ -301,14 +316,14 @@ class _LearningPaceCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _PaceValue(
-                    label: '今週',
-                    value: '${stats.thisWeekRecordings}回',
+                    label: l10n.thisWeekLabel,
+                    value: l10n.recordingCount(stats.thisWeekRecordings),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _PaceValue(
-                    label: '先週比',
+                    label: l10n.versusLastWeekLabel,
                     value: deltaText,
                     valueColor: deltaColor,
                   ),
@@ -316,11 +331,27 @@ class _LearningPaceCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text(stats.trendMessage, style: theme.textTheme.bodyMedium),
+            Text(_trendMessage(l10n, stats), style: theme.textTheme.bodyMedium),
           ],
         ),
       ),
     );
+  }
+
+  String _trendMessage(AppLocalizations l10n, LearningStats stats) {
+    if (stats.totalRecordings == 0) {
+      return l10n.trendNoRecordings;
+    }
+    if (stats.weeklyRecordingDelta > 0) {
+      return l10n.trendImproving(stats.weeklyRecordingDelta);
+    }
+    if (stats.weeklyRecordingDelta == 0 && stats.thisWeekRecordings > 0) {
+      return l10n.trendSteady;
+    }
+    if (stats.thisWeekRecordings == 0) {
+      return l10n.trendNoRecordingsThisWeek;
+    }
+    return l10n.trendSlower;
   }
 }
 

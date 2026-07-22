@@ -2,6 +2,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../recording/models/record_entry.dart';
+import '../../settings/data/app_settings_store.dart';
+import '../../settings/models/app_language.dart';
 import '../models/ai_correction_result.dart';
 
 class EdgeFunctionCorrectionService {
@@ -12,21 +14,43 @@ class EdgeFunctionCorrectionService {
 
   bool get isAvailable => _client?.auth.currentUser != null;
 
+  static Map<String, dynamic> requestBodyFor(
+    RecordEntry entry, {
+    required String baseLocale,
+  }) {
+    final parsedBaseLocale = AppLanguage.parse(baseLocale);
+    final parsedLearningLanguage = AppLanguage.parse(entry.language);
+    if (parsedBaseLocale == null ||
+        parsedLearningLanguage == null ||
+        !isValidLanguageSelection(
+          baseLocale: parsedBaseLocale,
+          learningLanguage: parsedLearningLanguage,
+        )) {
+      throw ArgumentError('Unsupported language selection');
+    }
+    return {
+      'recordingId': entry.id,
+      'language': entry.language,
+      'learningLanguage': entry.language,
+      'baseLocale': baseLocale,
+      'audioPath': entry.audioPath,
+    };
+  }
+
   Future<AiCorrectionResult> analyze(RecordEntry entry) async {
     final client = _client;
     if (client == null || client.auth.currentUser == null) {
-      throw const EdgeCorrectionUnavailableException('Supabaseにログインしていません。');
+      throw const EdgeCorrectionUnavailableException('AUTH_REQUIRED');
     }
 
     final FunctionResponse response;
     try {
       response = await client.functions.invoke(
         'analyze-recording',
-        body: {
-          'recordingId': entry.id,
-          'language': entry.language,
-          'audioPath': entry.audioPath,
-        },
+        body: requestBodyFor(
+          entry,
+          baseLocale: AppSettingsStore.instance.baseLocaleCode,
+        ),
       );
     } catch (error) {
       throw EdgeCorrectionUnavailableException(
@@ -48,9 +72,7 @@ class EdgeFunctionCorrectionService {
       return AiCorrectionResult.fromJson(Map<String, dynamic>.from(data));
     }
 
-    throw const EdgeCorrectionUnavailableException(
-      'Edge Functionのレスポンス形式が不正です。',
-    );
+    throw const EdgeCorrectionUnavailableException('INVALID_RESPONSE');
   }
 
   String _errorMessageFor(Object? data, int status) {
@@ -58,12 +80,15 @@ class EdgeFunctionCorrectionService {
       final error = data['error']?.toString();
       if (error != null && error.isNotEmpty) {
         if (error == 'NO_RECOGNIZABLE_SPEECH') {
-          return '音声を認識できませんでした。録音内容を確認して、もう一度録音してください。';
+          return error;
         }
         final remaining = data['remaining'];
         final limit = data['limit'];
         if (status == 429 && limit != null) {
-          return '本日の回数上限に達しました。';
+          return 'DAILY_LIMIT_REACHED';
+        }
+        if (error == 'UNSUPPORTED_LANGUAGE' || error == 'ANALYSIS_FAILED') {
+          return error;
         }
         if (remaining != null && limit != null) {
           return '$error ($remaining/$limit)';
@@ -71,7 +96,7 @@ class EdgeFunctionCorrectionService {
         return error;
       }
     }
-    return 'Edge Functionがエラーを返しました: $status';
+    return 'ANALYSIS_FAILED';
   }
 
   String _friendlyExceptionMessage(Object error) {
@@ -79,12 +104,16 @@ class EdgeFunctionCorrectionService {
     if (message.contains('429') ||
         message.contains('Too Many Requests') ||
         message.contains('本日の無料AI添削回数')) {
-      return '本日の回数上限に達しました。';
+      return 'DAILY_LIMIT_REACHED';
     }
     if (message.contains('NO_RECOGNIZABLE_SPEECH')) {
-      return '音声を認識できませんでした。録音内容を確認して、もう一度録音してください。';
+      return 'NO_RECOGNIZABLE_SPEECH';
     }
-    return message;
+    if (message.toLowerCase().contains('network') ||
+        message.toLowerCase().contains('socket')) {
+      return 'NETWORK_ERROR';
+    }
+    return 'ANALYSIS_FAILED';
   }
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../correction/repositories/correction_repository.dart';
 
 class FeedbackInsightDetailPage extends StatelessWidget {
@@ -9,9 +10,10 @@ class FeedbackInsightDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('添削ポイント詳細')),
+      appBar: AppBar(title: Text(l10n.feedbackDetailTitle)),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -26,7 +28,7 @@ class FeedbackInsightDetailPage extends StatelessWidget {
                       Chip(label: Text(insight.categoryLabel)),
                       const Spacer(),
                       Text(
-                        '${insight.count}回',
+                        l10n.recordingCount(insight.count),
                         style: theme.textTheme.titleMedium,
                       ),
                     ],
@@ -45,20 +47,24 @@ class FeedbackInsightDetailPage extends StatelessWidget {
           const SizedBox(height: 12),
           _DetailCard(
             icon: Icons.lightbulb_outline,
-            title: '対策メモ',
-            text: insight.shortAdvice,
+            title: l10n.strategyNotes,
+            text: insight.categoryLabel == '文法'
+                ? l10n.grammarAdvice
+                : l10n.vocabularyAdvice,
           ),
           const SizedBox(height: 12),
           _DetailCard(
             icon: Icons.record_voice_over_outlined,
-            title: '次の録音で試すこと',
-            text: insight.practicePrompt,
+            title: l10n.tryNextRecording,
+            text: insight.categoryLabel == '文法'
+                ? l10n.grammarPracticePrompt
+                : l10n.vocabularyPracticePrompt,
           ),
           const SizedBox(height: 12),
           _DetailCard(
             icon: Icons.repeat,
-            title: '使い方',
-            text: 'このポイントを意識して短く録音し、AI添削でもう一度確認すると改善の変化が見えやすくなります。',
+            title: l10n.howToUse,
+            text: l10n.feedbackUsageDescription,
           ),
         ],
       ),

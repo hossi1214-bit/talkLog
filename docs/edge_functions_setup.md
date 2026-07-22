@@ -127,7 +127,7 @@ AI添削は Responses API に transcript と学習言語を渡し、JSON schema 
 {
   "correctedText": "...",
   "naturalExpression": "...",
-  "japaneseTranslation": "...",
+  "translation": "...",
   "grammarNotes": ["..."],
   "vocabularyNotes": ["..."],
   "score": 82,
@@ -144,7 +144,7 @@ Flutter には Edge Function から以下の形で返します。
     "transcript": "...",
     "correctedText": "...",
     "naturalExpression": "...",
-    "japaneseTranslation": "...",
+    "translation": "...",
     "grammarNotes": ["..."],
     "vocabularyNotes": ["..."],
     "score": 82,

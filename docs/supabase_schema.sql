@@ -7,7 +7,8 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   display_name text,
-  learning_language text not null default 'スペイン語',
+  learning_language text not null default 'es'
+    check (learning_language in ('ja', 'en', 'es', 'fr', 'de', 'it', 'ko', 'zh-Hans')),
   role text not null default 'FREE' check (role in ('FREE', 'PREMIUM', 'TESTER', 'ADMIN')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -44,17 +45,24 @@ create table if not exists public.feedbacks (
   vocabulary_feedback jsonb not null default '[]'::jsonb,
   score integer not null default 0 check (score between 0 and 100),
   comment text not null default '',
+  learning_language text not null,
+  base_locale text not null default 'ja',
+  prompt_version text not null default 'legacy-v1',
   created_at timestamptz not null default now(),
-  unique (recording_id)
+  unique (recording_id, learning_language, base_locale, prompt_version)
 );
 
 create table if not exists public.vocabulary (
   id uuid primary key default gen_random_uuid(),
   recording_id uuid not null references public.recordings(id) on delete cascade,
   language text not null,
+  learning_language text not null,
+  base_locale text not null default 'ja',
   word text not null,
   meaning text not null,
   example text,
+  example_translation text,
+  language_metadata jsonb not null default '{}'::jsonb,
   is_reviewed boolean not null default false,
   review_count integer not null default 0 check (review_count >= 0),
   last_reviewed_at timestamptz,
@@ -99,13 +107,17 @@ create table if not exists public.word_usage (
 create table if not exists public.settings (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
-  learning_language text not null default 'スペイン語',
+  base_locale text not null default 'ja'
+    check (base_locale in ('ja', 'en', 'es')),
+  learning_language text not null default 'es'
+    check (learning_language in ('ja', 'en', 'es', 'fr', 'de', 'it', 'ko', 'zh-Hans')),
   notification_enabled boolean not null default false,
   notification_time time,
   theme text not null default 'system',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (user_id)
+  unique (user_id),
+  check (base_locale <> learning_language)
 );
 
 create index if not exists recordings_user_created_idx on public.recordings(user_id, created_at desc);

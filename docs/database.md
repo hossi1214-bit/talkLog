@@ -496,6 +496,10 @@ user\_id uuid
 
 
 
+base\_locale text
+
+
+
 learning\_language text
 
 

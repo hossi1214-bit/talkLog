@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../recording/models/record_entry.dart';
+import '../../settings/data/app_settings_store.dart';
 import '../models/ai_correction_result.dart';
 
 class FeedbackInsight {
@@ -49,12 +50,16 @@ class CorrectionRepository {
         .select('original_text')
         .eq('recording_id', entry.id)
         .maybeSingle();
+    final baseLocale = AppSettingsStore.instance.baseLocaleCode;
     final feedbackRow = await client
         .from('feedbacks')
         .select(
-          'corrected_text, natural_expression, translation_ja, grammar_feedback, vocabulary_feedback, score, comment',
+          'corrected_text, natural_expression, translation_ja, grammar_feedback, vocabulary_feedback, score, comment, learning_language, base_locale, prompt_version',
         )
         .eq('recording_id', entry.id)
+        .eq('learning_language', entry.language)
+        .eq('base_locale', baseLocale)
+        .eq('prompt_version', AiCorrectionResult.currentPromptVersion)
         .maybeSingle();
 
     if (transcriptRow == null || feedbackRow == null) {
@@ -65,11 +70,14 @@ class CorrectionRepository {
       transcript: transcriptRow['original_text'] as String? ?? '',
       correctedText: feedbackRow['corrected_text'] as String? ?? '',
       naturalExpression: feedbackRow['natural_expression'] as String? ?? '',
-      japaneseTranslation: feedbackRow['translation_ja'] as String? ?? '',
+      translation: feedbackRow['translation_ja'] as String? ?? '',
       grammarNotes: _stringList(feedbackRow['grammar_feedback']),
       vocabularyNotes: _stringList(feedbackRow['vocabulary_feedback']),
       score: feedbackRow['score'] as int? ?? 0,
       encouragement: feedbackRow['comment'] as String? ?? '',
+      learningLanguage: feedbackRow['learning_language'] as String?,
+      baseLocale: feedbackRow['base_locale'] as String?,
+      promptVersion: feedbackRow['prompt_version'] as String?,
     );
   }
 
@@ -83,6 +91,7 @@ class CorrectionRepository {
         .from('feedbacks')
         .select('id')
         .eq('recording_id', entry.id)
+        .limit(1)
         .maybeSingle();
     return row != null;
   }
@@ -93,7 +102,11 @@ class CorrectionRepository {
       return const {};
     }
 
-    final rows = await client.from('feedbacks').select('recording_id');
+    final rows = await client
+        .from('feedbacks')
+        .select('recording_id')
+        .eq('base_locale', AppSettingsStore.instance.baseLocaleCode)
+        .eq('prompt_version', AiCorrectionResult.currentPromptVersion);
     return rows
         .map((row) => Map<String, dynamic>.from(row)['recording_id'] as String?)
         .whereType<String>()
@@ -108,7 +121,9 @@ class CorrectionRepository {
 
     var query = client
         .from('feedbacks')
-        .select('score, recordings!inner(language)');
+        .select('score, recordings!inner(language)')
+        .eq('base_locale', AppSettingsStore.instance.baseLocaleCode)
+        .eq('prompt_version', AiCorrectionResult.currentPromptVersion);
     if (language != null) {
       query = query.eq('recordings.language', language);
     }
@@ -140,7 +155,9 @@ class CorrectionRepository {
         .from('feedbacks')
         .select(
           'grammar_feedback, vocabulary_feedback, recordings!inner(language)',
-        );
+        )
+        .eq('base_locale', AppSettingsStore.instance.baseLocaleCode)
+        .eq('prompt_version', AiCorrectionResult.currentPromptVersion);
     if (language != null) {
       query = query.eq('recordings.language', language);
     }
@@ -227,13 +244,18 @@ class CorrectionRepository {
       'recording_id': entry.id,
       'corrected_text': result.correctedText,
       'natural_expression': result.naturalExpression,
-      'translation_ja': result.japaneseTranslation,
+      'translation_ja': result.translation,
       'grammar_feedback': result.grammarNotes,
       'vocabulary_feedback': result.vocabularyNotes,
       'score': result.score,
       'comment': result.encouragement,
+      'learning_language': result.learningLanguage ?? entry.language,
+      'base_locale':
+          result.baseLocale ?? AppSettingsStore.instance.baseLocaleCode,
+      'prompt_version':
+          result.promptVersion ?? AiCorrectionResult.currentPromptVersion,
       'created_at': DateTime.now().toUtc().toIso8601String(),
-    }, onConflict: 'recording_id');
+    }, onConflict: 'recording_id,learning_language,base_locale,prompt_version');
   }
 
   Future<void> saveDummyResult({

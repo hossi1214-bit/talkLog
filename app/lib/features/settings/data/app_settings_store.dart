@@ -3,35 +3,45 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../models/app_language.dart';
+import '../models/language_settings_selection.dart';
 
 class AppSettingsStore extends ChangeNotifier {
   AppSettingsStore._();
 
+  @visibleForTesting
+  AppSettingsStore.forTesting();
+
   static final AppSettingsStore instance = AppSettingsStore._();
 
-  static const supportedLanguages = [
-    '英語',
-    'スペイン語',
-    'フランス語',
-    'ドイツ語',
-    'イタリア語',
-    '韓国語',
-    '中国語',
-  ];
-  static const _languageKey = 'learning_language';
-  static const _defaultLanguage = '英語';
+  static const _baseLocaleKey = 'base_locale';
+  static const _learningLanguageKey = 'learning_language';
+
+  // Kept temporarily for existing screens. UI localization will replace these
+  // Japanese labels with locale-aware labels in the next implementation phase.
+  static List<String> get supportedLanguages => supportedLearningLanguages
+      .map((language) => language.japaneseLabel)
+      .toList(growable: false);
 
   bool _isLoaded = false;
   bool _isCloudSyncing = false;
-  String _learningLanguage = _defaultLanguage;
+  AppLanguage _baseLocale = AppLanguage.english;
+  AppLanguage _learningLanguage = AppLanguage.spanish;
   String? _cloudMessage;
   String? _cloudError;
 
   bool get isLoaded => _isLoaded;
   bool get isCloudSyncing => _isCloudSyncing;
-  String get learningLanguage => _learningLanguage;
+  AppLanguage get baseLocale => _baseLocale;
+  String get baseLocaleCode => _baseLocale.code;
+  AppLanguage get learningLanguageValue => _learningLanguage;
+  String get learningLanguageCode => _learningLanguage.code;
+  String get learningLanguage => _learningLanguage.japaneseLabel;
   String? get cloudMessage => _cloudMessage;
   String? get cloudError => _cloudError;
+
+  List<AppLanguage> get availableLearningLanguages =>
+      availableLearningLanguagesFor(_baseLocale);
 
   Future<void> load() async {
     if (_isLoaded) {
@@ -39,26 +49,83 @@ class AppSettingsStore extends ChangeNotifier {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final savedLanguage = prefs.getString(_languageKey);
-    if (savedLanguage != null && supportedLanguages.contains(savedLanguage)) {
-      _learningLanguage = savedLanguage;
-    }
+    final initialSelection = resolveInitialLanguageSelection(
+      deviceLanguageTag: PlatformDispatcher.instance.locale.toLanguageTag(),
+      savedBaseLocale: prefs.getString(_baseLocaleKey),
+      savedLearningLanguage: prefs.getString(_learningLanguageKey),
+    );
+    _baseLocale = initialSelection.baseLocale;
+    _learningLanguage = initialSelection.learningLanguage;
+    await _persistLocal(prefs);
+
     _isLoaded = true;
     notifyListeners();
   }
 
-  Future<void> setLearningLanguage(String language) async {
-    if (!supportedLanguages.contains(language) ||
-        language == _learningLanguage) {
-      return;
+  Future<bool> setBaseLocale(String locale) async {
+    await load();
+    final nextLocale = AppLanguage.parse(locale);
+    if (nextLocale == null ||
+        !supportedBaseLocales.contains(nextLocale) ||
+        nextLocale == _learningLanguage) {
+      return false;
+    }
+    if (nextLocale == _baseLocale) {
+      return true;
     }
 
-    _learningLanguage = language;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_languageKey, language);
-    _isLoaded = true;
+    _baseLocale = nextLocale;
+    await _persistLocal();
     notifyListeners();
     await syncToCloud();
+    return true;
+  }
+
+  Future<bool> setLearningLanguage(String language) async {
+    await load();
+    final nextLanguage = AppLanguage.parse(language);
+    if (nextLanguage == null ||
+        !supportedLearningLanguages.contains(nextLanguage) ||
+        nextLanguage == _baseLocale) {
+      return false;
+    }
+    if (nextLanguage == _learningLanguage) {
+      return true;
+    }
+
+    _learningLanguage = nextLanguage;
+    await _persistLocal();
+    notifyListeners();
+    await syncToCloud();
+    return true;
+  }
+
+  Future<bool> setLanguages({
+    required String baseLocale,
+    required String learningLanguage,
+  }) async {
+    await load();
+    final nextBaseLocale = AppLanguage.parse(baseLocale);
+    final nextLearningLanguage = AppLanguage.parse(learningLanguage);
+    if (nextBaseLocale == null ||
+        nextLearningLanguage == null ||
+        !supportedBaseLocales.contains(nextBaseLocale) ||
+        !supportedLearningLanguages.contains(nextLearningLanguage) ||
+        nextBaseLocale == nextLearningLanguage) {
+      return false;
+    }
+
+    if (nextBaseLocale == _baseLocale &&
+        nextLearningLanguage == _learningLanguage) {
+      return true;
+    }
+
+    _baseLocale = nextBaseLocale;
+    _learningLanguage = nextLearningLanguage;
+    await _persistLocal();
+    notifyListeners();
+    await syncToCloud();
+    return true;
   }
 
   Future<void> syncFromCloud() async {
@@ -76,18 +143,18 @@ class AppSettingsStore extends ChangeNotifier {
     try {
       final row = await client
           .from('settings')
-          .select('learning_language')
+          .select('base_locale, learning_language')
           .eq('user_id', userId)
           .maybeSingle();
-      final language = row?['learning_language'] as String?;
-      if (language != null && supportedLanguages.contains(language)) {
-        _learningLanguage = language;
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_languageKey, language);
+      final cloudSelection = LanguageSettingsSelection.fromCloudRow(row);
+      if (cloudSelection != null) {
+        _baseLocale = cloudSelection.baseLocale;
+        _learningLanguage = cloudSelection.learningLanguage;
+        await _persistLocal();
       }
-      _cloudMessage = '設定をクラウドから読み込みました。';
+      _cloudMessage = 'SETTINGS_DOWNLOADED';
     } catch (error) {
-      _cloudError = _friendlyError(error);
+      _cloudError = 'SETTINGS_DOWNLOAD_FAILED|${_friendlyError(error)}';
     } finally {
       _isCloudSyncing = false;
       notifyListeners();
@@ -108,18 +175,28 @@ class AppSettingsStore extends ChangeNotifier {
 
     try {
       await _ensureProfile(client, userId);
+      final selection = LanguageSettingsSelection(
+        baseLocale: _baseLocale,
+        learningLanguage: _learningLanguage,
+      );
       await client.from('settings').upsert({
         'user_id': userId,
-        'learning_language': _learningLanguage,
+        ...selection.toCloudValues(),
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'user_id');
-      _cloudMessage = '設定をクラウドに保存しました。';
+      _cloudMessage = 'SETTINGS_SAVED';
     } catch (error) {
-      _cloudError = _friendlyError(error);
+      _cloudError = 'SETTINGS_SAVE_FAILED|${_friendlyError(error)}';
     } finally {
       _isCloudSyncing = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _persistLocal([SharedPreferences? preferences]) async {
+    final prefs = preferences ?? await SharedPreferences.getInstance();
+    await prefs.setString(_baseLocaleKey, _baseLocale.code);
+    await prefs.setString(_learningLanguageKey, _learningLanguage.code);
   }
 
   Future<void> _ensureProfile(SupabaseClient client, String userId) async {

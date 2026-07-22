@@ -9,6 +9,8 @@ import '../data/recording_store.dart';
 import '../models/record_entry.dart';
 import '../services/record_service.dart';
 
+enum RecordErrorKind { permission, storageLimit, start, save, cancel }
+
 class RecordController extends ChangeNotifier {
   RecordController({
     RecordService? recordService,
@@ -28,12 +30,15 @@ class RecordController extends ChangeNotifier {
   bool _isBusy = false;
   int _timerGeneration = 0;
   String? _errorMessage;
+  RecordErrorKind? _errorKind;
 
   Duration get elapsed => _isRecording ? _elapsed : Duration.zero;
   bool get isRecording => _isRecording;
   bool get isBusy => _isBusy;
   String get learningLanguage => _settings.learningLanguage;
+  String get learningLanguageCode => _settings.learningLanguageCode;
   String? get errorMessage => _errorMessage;
+  RecordErrorKind? get errorKind => _errorKind;
 
   AppSettingsStore get _settings {
     return _settingsStore ??= AppSettingsStore.instance;
@@ -70,6 +75,7 @@ class RecordController extends ChangeNotifier {
     _stopTimer();
     _elapsed = Duration.zero;
     _errorMessage = null;
+    _errorKind = null;
     notifyListeners();
 
     try {
@@ -78,20 +84,22 @@ class RecordController extends ChangeNotifier {
       if (storageLimit != null) {
         await _store.refreshAudioStorageUsage(notify: false);
         if (_store.cloudAudioStorageBytes >= storageLimit) {
-          throw const RecordStartException(
-            '無料プランの音声保存容量200MBに達しています。Premiumなら容量を気にせず保存できます。',
-          );
+          throw const _StorageLimitReached();
         }
       }
       await _recordService.start();
       _isRecording = true;
       _startTimer();
     } on RecordPermissionException {
-      _errorMessage = '録音にはマイクの許可が必要です。端末のアプリ設定からマイクを許可してください。';
+      _errorKind = RecordErrorKind.permission;
+    } on _StorageLimitReached {
+      _errorKind = RecordErrorKind.storageLimit;
     } on RecordStartException catch (error) {
-      _errorMessage = '録音を開始できませんでした: ${_friendlyError(error.message)}';
+      _errorKind = RecordErrorKind.start;
+      _errorMessage = _friendlyError(error.message);
     } catch (error) {
-      _errorMessage = '録音を開始できませんでした: ${_friendlyError(error)}';
+      _errorKind = RecordErrorKind.start;
+      _errorMessage = _friendlyError(error);
     } finally {
       _isBusy = false;
       notifyListeners();
@@ -108,7 +116,7 @@ class RecordController extends ChangeNotifier {
 
     _isBusy = true;
     final duration = _elapsed;
-    final language = _settings.learningLanguage;
+    final language = _settings.learningLanguageCode;
     _stopRecordingClock();
     notifyListeners();
 
@@ -125,9 +133,11 @@ class RecordController extends ChangeNotifier {
       await _store.add(entry);
       return entry;
     } on RecordSaveException catch (error) {
-      _errorMessage = '録音を保存できませんでした: ${_friendlyError(error.message)}';
+      _errorKind = RecordErrorKind.save;
+      _errorMessage = _friendlyError(error.message);
     } catch (error) {
-      _errorMessage = '録音を保存できませんでした: ${_friendlyError(error)}';
+      _errorKind = RecordErrorKind.save;
+      _errorMessage = _friendlyError(error);
     } finally {
       _isBusy = false;
       notifyListeners();
@@ -150,10 +160,13 @@ class RecordController extends ChangeNotifier {
     try {
       await _recordService.cancel();
       _errorMessage = null;
+      _errorKind = null;
     } on RecordSaveException catch (error) {
-      _errorMessage = '録音をキャンセルできませんでした: ${_friendlyError(error.message)}';
+      _errorKind = RecordErrorKind.cancel;
+      _errorMessage = _friendlyError(error.message);
     } catch (error) {
-      _errorMessage = '録音をキャンセルできませんでした: ${_friendlyError(error)}';
+      _errorKind = RecordErrorKind.cancel;
+      _errorMessage = _friendlyError(error);
     } finally {
       _isBusy = false;
       notifyListeners();
@@ -199,4 +212,8 @@ class RecordController extends ChangeNotifier {
     unawaited(_recordService.dispose());
     super.dispose();
   }
+}
+
+class _StorageLimitReached implements Exception {
+  const _StorageLimitReached();
 }

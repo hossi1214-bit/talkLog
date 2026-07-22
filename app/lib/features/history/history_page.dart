@@ -2,14 +2,16 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/utils/japan_time.dart';
+import '../../l10n/app_localizations.dart';
 
 import '../correction/repositories/correction_repository.dart';
 import '../recording/data/recording_store.dart';
 import '../recording/models/record_entry.dart';
 import '../recording/widgets/sync_status_banner.dart';
-import '../settings/data/app_settings_store.dart';
+import '../settings/models/app_language.dart';
 import 'history_detail_page.dart';
 
 class HistoryPageController extends ChangeNotifier {
@@ -125,6 +127,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final detailEntry = _detailEntry;
     if (detailEntry != null) {
       return HistoryDetailPage(
@@ -141,21 +144,25 @@ class _HistoryPageState extends State<HistoryPage> {
       appBar: AppBar(
         leading: _isSelectionMode
             ? IconButton(
-                tooltip: '選択を解除',
+                tooltip: l10n.clearSelection,
                 icon: const Icon(Icons.close),
                 onPressed: _clearSelection,
               )
             : null,
-        title: Text(_isSelectionMode ? '${_selectedIds.length}件選択中' : '履歴'),
+        title: Text(
+          _isSelectionMode
+              ? l10n.historySelected(_selectedIds.length)
+              : l10n.historyTitle,
+        ),
         actions: _isSelectionMode
             ? [
                 IconButton(
-                  tooltip: '表示中の履歴をすべて選択',
+                  tooltip: l10n.selectAllVisible,
                   icon: const Icon(Icons.select_all),
                   onPressed: entries.isEmpty ? null : () => _selectAll(entries),
                 ),
                 IconButton(
-                  tooltip: '選択した履歴を削除',
+                  tooltip: l10n.deleteSelected,
                   icon: _isDeletingSelected
                       ? const SizedBox.square(
                           dimension: 20,
@@ -169,12 +176,12 @@ class _HistoryPageState extends State<HistoryPage> {
               ]
             : [
                 IconButton(
-                  tooltip: '絞り込みをリセット',
+                  tooltip: l10n.resetFilters,
                   icon: const Icon(Icons.filter_alt_off_outlined),
                   onPressed: _hasActiveFilters ? _resetFilters : null,
                 ),
                 IconButton(
-                  tooltip: '添削状態を再取得',
+                  tooltip: l10n.refreshCorrectionStatus,
                   icon: const Icon(Icons.refresh),
                   onPressed: _loadCorrectedIds,
                 ),
@@ -188,10 +195,10 @@ class _HistoryPageState extends State<HistoryPage> {
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                   child: TextField(
                     controller: _searchController,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: '日付・言語で検索',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.search),
+                      hintText: l10n.historySearchHint,
+                      border: const OutlineInputBorder(),
                     ),
                     onChanged: (value) {
                       setState(() {
@@ -207,7 +214,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     children: [
                       FilterChip(
-                        label: const Text('添削済みのみ'),
+                        label: Text(l10n.correctedOnly),
                         selected: _showCorrectedOnly,
                         onSelected: (value) {
                           setState(() {
@@ -218,7 +225,7 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                       const SizedBox(width: 8),
                       ChoiceChip(
-                        label: const Text('すべて'),
+                        label: Text(l10n.all),
                         selected: _languageFilter == null,
                         onSelected: (_) {
                           setState(() {
@@ -228,14 +235,13 @@ class _HistoryPageState extends State<HistoryPage> {
                         },
                       ),
                       const SizedBox(width: 8),
-                      for (final language
-                          in AppSettingsStore.supportedLanguages) ...[
+                      for (final language in AppLanguage.values) ...[
                         ChoiceChip(
-                          label: Text(language),
-                          selected: _languageFilter == language,
+                          label: Text(_languageName(l10n, language.code)),
+                          selected: _languageFilter == language.code,
                           onSelected: (_) {
                             setState(() {
-                              _languageFilter = language;
+                              _languageFilter = language.code;
                               _selectedIds.clear();
                             });
                           },
@@ -253,7 +259,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     children: [
                       for (final filter in _DateRangeFilter.values) ...[
                         ChoiceChip(
-                          label: Text(filter.label),
+                          label: Text(filter.label(l10n)),
                           selected: _dateRangeFilter == filter,
                           onSelected: (_) {
                             setState(() {
@@ -275,7 +281,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     children: [
                       for (final filter in _DurationFilter.values) ...[
                         ChoiceChip(
-                          label: Text(filter.label),
+                          label: Text(filter.label(l10n)),
                           selected: _durationFilter == filter,
                           onSelected: (_) {
                             setState(() {
@@ -302,22 +308,22 @@ class _HistoryPageState extends State<HistoryPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            '削除したい履歴を選択してください。',
+                            l10n.selectHistoryHelp,
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ),
                         TextButton(
                           onPressed: _clearSelection,
-                          child: const Text('解除'),
+                          child: Text(l10n.releaseSelection),
                         ),
                       ],
                     ),
                   ),
                 Expanded(
                   child: _store.entries.isEmpty
-                      ? const Center(child: Text('録音はまだありません。'))
+                      ? Center(child: Text(l10n.noRecordings))
                       : entries.isEmpty
-                      ? const Center(child: Text('条件に合う履歴はありません。'))
+                      ? Center(child: Text(l10n.noMatchingHistory))
                       : ListView.separated(
                           padding: const EdgeInsets.all(16),
                           itemCount: entries.length,
@@ -340,7 +346,9 @@ class _HistoryPageState extends State<HistoryPage> {
                                             _toggleSelection(entry),
                                       )
                                     : IconButton.filledTonal(
-                                        tooltip: isPlaying ? '一時停止' : '再生',
+                                        tooltip: isPlaying
+                                            ? l10n.pause
+                                            : l10n.play,
                                         icon: Icon(
                                           isPlaying
                                               ? Icons.pause
@@ -354,12 +362,22 @@ class _HistoryPageState extends State<HistoryPage> {
                                   runSpacing: 4,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
-                                    _SmallStatus(label: entry.language),
+                                    _SmallStatus(
+                                      label: _languageName(
+                                        l10n,
+                                        AppLanguage.parse(
+                                              entry.language,
+                                            )?.code ??
+                                            entry.language,
+                                      ),
+                                    ),
                                     _SmallStatus(
                                       label: _formatDuration(entry.duration),
                                     ),
                                     _SmallStatus(
-                                      label: isCorrected ? '添削済み' : '未添削',
+                                      label: isCorrected
+                                          ? l10n.corrected
+                                          : l10n.notCorrected,
                                       icon: isCorrected
                                           ? Icons.auto_awesome
                                           : Icons.auto_awesome_outlined,
@@ -369,21 +387,21 @@ class _HistoryPageState extends State<HistoryPage> {
                                 trailing: _isSelectionMode
                                     ? null
                                     : PopupMenuButton<_HistoryAction>(
-                                        tooltip: 'その他',
+                                        tooltip: l10n.more,
                                         onSelected: (action) =>
                                             _handleAction(action, entry),
-                                        itemBuilder: (context) => const [
+                                        itemBuilder: (context) => [
                                           PopupMenuItem(
                                             value: _HistoryAction.details,
-                                            child: Text('詳細'),
+                                            child: Text(l10n.details),
                                           ),
                                           PopupMenuItem(
                                             value: _HistoryAction.select,
-                                            child: Text('選択'),
+                                            child: Text(l10n.select),
                                           ),
                                           PopupMenuItem(
                                             value: _HistoryAction.delete,
-                                            child: Text('削除'),
+                                            child: Text(l10n.delete),
                                           ),
                                         ],
                                       ),
@@ -410,7 +428,8 @@ class _HistoryPageState extends State<HistoryPage> {
 
   List<RecordEntry> _filteredEntries(List<RecordEntry> entries) {
     return entries.where((entry) {
-      if (_languageFilter != null && entry.language != _languageFilter) {
+      if (_languageFilter != null &&
+          AppLanguage.parse(entry.language)?.code != _languageFilter) {
         return false;
       }
       if (_showCorrectedOnly && !_correctedIds.contains(entry.id)) {
@@ -482,9 +501,9 @@ class _HistoryPageState extends State<HistoryPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('音声ファイルが見つかりません。')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).audioFileMissing)),
+      );
       return;
     }
 
@@ -509,20 +528,21 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _confirmAndDeleteEntry(RecordEntry entry) async {
+    final l10n = AppLocalizations.of(context);
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('録音を削除しますか？'),
-          content: const Text('この操作は取り消せません。音声ファイルとクラウド上の録音データも削除されます。'),
+          title: Text(l10n.deleteRecordingTitle),
+          content: Text(l10n.deleteRecordingDescription),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('キャンセル'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('削除'),
+              child: Text(l10n.delete),
             ),
           ],
         );
@@ -535,6 +555,7 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   Future<void> _confirmAndDeleteSelected() async {
+    final l10n = AppLocalizations.of(context);
     final selectedEntries = _store.entries
         .where((entry) => _selectedIds.contains(entry.id))
         .toList(growable: false);
@@ -547,16 +568,16 @@ class _HistoryPageState extends State<HistoryPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('${selectedEntries.length}件の録音を削除しますか？'),
-          content: const Text('この操作は取り消せません。選択した音声ファイルとクラウド上の録音データも削除されます。'),
+          title: Text(l10n.deleteSelectedTitle(selectedEntries.length)),
+          content: Text(l10n.deleteSelectedDescription),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('キャンセル'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('削除'),
+              child: Text(l10n.delete),
             ),
           ],
         );
@@ -575,9 +596,9 @@ class _HistoryPageState extends State<HistoryPage> {
     }
     await _store.delete(entry);
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('録音を削除しました。')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).recordingDeleted)),
+      );
     }
   }
 
@@ -601,9 +622,13 @@ class _HistoryPageState extends State<HistoryPage> {
       setState(() {
         _selectedIds.clear();
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${entries.length}件の録音を削除しました。')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).recordingsDeleted(entries.length),
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -629,17 +654,19 @@ class _HistoryPageState extends State<HistoryPage> {
 
   String _formatDateTime(DateTime dateTime) {
     final local = JapanTime.from(dateTime);
-    final month = local.month.toString().padLeft(2, '0');
-    final day = local.day.toString().padLeft(2, '0');
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-    return '${local.year}/$month/$day $hour:$minute';
+    return DateFormat.yMd(
+      Localizations.localeOf(context).toLanguageTag(),
+    ).add_Hm().format(local);
   }
 
   String _formatDuration(Duration duration) {
     final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  String _languageName(AppLocalizations l10n, String code) {
+    return l10n.languageName(code == 'zh-Hans' ? 'zhHans' : code);
   }
 }
 
@@ -669,14 +696,17 @@ class _SmallStatus extends StatelessWidget {
 enum _HistoryAction { details, select, delete }
 
 enum _DateRangeFilter {
-  all('期間: すべて'),
-  today('今日'),
-  sevenDays('7日以内'),
-  thirtyDays('30日以内');
+  all,
+  today,
+  sevenDays,
+  thirtyDays;
 
-  const _DateRangeFilter(this.label);
-
-  final String label;
+  String label(AppLocalizations l10n) => switch (this) {
+    _DateRangeFilter.all => l10n.dateAll,
+    _DateRangeFilter.today => l10n.today,
+    _DateRangeFilter.sevenDays => l10n.withinSevenDays,
+    _DateRangeFilter.thirtyDays => l10n.withinThirtyDays,
+  };
 
   bool matches(DateTime value) {
     final date = JapanTime.dateOnly(value);
@@ -695,14 +725,17 @@ enum _DateRangeFilter {
 }
 
 enum _DurationFilter {
-  all('長さ: すべて'),
-  short('1分未満'),
-  medium('1〜3分'),
-  long('3分以上');
+  all,
+  short,
+  medium,
+  long;
 
-  const _DurationFilter(this.label);
-
-  final String label;
+  String label(AppLocalizations l10n) => switch (this) {
+    _DurationFilter.all => l10n.durationAll,
+    _DurationFilter.short => l10n.underOneMinute,
+    _DurationFilter.medium => l10n.oneToThreeMinutes,
+    _DurationFilter.long => l10n.threeMinutesOrMore,
+  };
 
   bool matches(Duration duration) {
     return switch (this) {
