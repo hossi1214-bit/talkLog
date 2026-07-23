@@ -103,11 +103,7 @@ class CorrectionRepository {
       return const {};
     }
 
-    final rows = await client
-        .from('feedbacks')
-        .select('recording_id')
-        .eq('base_locale', AppSettingsStore.instance.baseLocaleCode)
-        .eq('prompt_version', AiCorrectionResult.currentPromptVersion);
+    final rows = await client.from('feedbacks').select('recording_id');
     return rows
         .map((row) => Map<String, dynamic>.from(row)['recording_id'] as String?)
         .whereType<String>()

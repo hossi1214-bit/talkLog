@@ -47,6 +47,7 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
     try {
       final saved = await _correctionRepository.fetchSavedResult(widget.entry);
       if (saved != null) {
+        await _syncVocabularyNotes(saved);
         return _CorrectionViewData(
           result: saved,
           sourceLabel: 'saved',
@@ -79,6 +80,7 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
     } catch (error) {
       notice = _friendlyError(error);
     }
+    await _syncVocabularyNotes(result);
 
     return _CorrectionViewData(
       result: result,
@@ -91,6 +93,20 @@ class _CorrectionResultPageState extends State<CorrectionResultPage> {
     setState(() {
       _resultFuture = _analyzeAndSync();
     });
+  }
+
+  Future<void> _syncVocabularyNotes(AiCorrectionResult result) async {
+    if (result.vocabularyNotes.isEmpty) {
+      return;
+    }
+    try {
+      await _vocabularyRepository.addFromNotes(
+        entry: widget.entry,
+        notes: result.vocabularyNotes,
+      );
+    } catch (_) {
+      // 単語帳同期の失敗で、添削結果の表示自体は止めない。
+    }
   }
 
   Future<void> _addVocabulary(AiCorrectionResult result) async {

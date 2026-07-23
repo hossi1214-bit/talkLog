@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
@@ -9,6 +10,8 @@ import '../models/vocabulary_item.dart';
 class VocabularyRepository {
   VocabularyRepository({SupabaseClient? client})
     : _client = client ?? SupabaseService.client;
+
+  static final changes = _VocabularyChangeNotifier();
 
   final SupabaseClient? _client;
 
@@ -55,6 +58,7 @@ class VocabularyRepository {
         _vocabularyKey(item.learningLanguage, item.word): item,
     };
     final newKeys = <String>{};
+    var didChange = false;
 
     for (final note in notes) {
       final parsed = _parseNote(note);
@@ -74,6 +78,7 @@ class VocabularyRepository {
             example: existing.example,
             exampleTranslation: existing.exampleTranslation,
           );
+          didChange = true;
         }
         continue;
       }
@@ -93,6 +98,11 @@ class VocabularyRepository {
         'language_metadata': <String, dynamic>{},
         'is_reviewed': false,
       });
+      didChange = true;
+    }
+
+    if (didChange) {
+      changes.notifyChanged();
     }
   }
 
@@ -119,6 +129,7 @@ class VocabularyRepository {
               : exampleTranslation!.trim(),
         })
         .eq('id', item.id);
+    changes.notifyChanged();
   }
 
   Future<void> deleteItem(VocabularyItem item) async {
@@ -128,6 +139,7 @@ class VocabularyRepository {
     }
 
     await client.from('vocabulary').delete().eq('id', item.id);
+    changes.notifyChanged();
   }
 
   Future<void> setReviewed(VocabularyItem item, bool isReviewed) async {
@@ -153,6 +165,7 @@ class VocabularyRepository {
           .update({'is_reviewed': isReviewed})
           .eq('id', item.id);
     }
+    changes.notifyChanged();
   }
 
   bool _isMissingReviewColumn(PostgrestException error) {
@@ -448,4 +461,10 @@ class _ParsedVocabulary {
 
   final String word;
   final String meaning;
+}
+
+class _VocabularyChangeNotifier extends ChangeNotifier {
+  void notifyChanged() {
+    notifyListeners();
+  }
 }

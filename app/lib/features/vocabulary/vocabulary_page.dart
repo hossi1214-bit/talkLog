@@ -35,12 +35,14 @@ class _VocabularyPageState extends State<VocabularyPage> {
     _selectedLanguage = _settingsStore.learningLanguageCode;
     _itemsFuture = _repository.fetchAll(language: _selectedLanguage);
     _settingsStore.addListener(_handleSettingsChanged);
+    VocabularyRepository.changes.addListener(_handleVocabularyChanged);
     _loadSettings();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    VocabularyRepository.changes.removeListener(_handleVocabularyChanged);
     _settingsStore.removeListener(_handleSettingsChanged);
     super.dispose();
   }
@@ -77,6 +79,16 @@ class _VocabularyPageState extends State<VocabularyPage> {
   }
 
   void _reload() {
+    setState(() {
+      _itemsFuture = _repository.fetchAll(language: _selectedLanguage);
+      _resetReviewState();
+    });
+  }
+
+  void _handleVocabularyChanged() {
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _itemsFuture = _repository.fetchAll(language: _selectedLanguage);
       _resetReviewState();
