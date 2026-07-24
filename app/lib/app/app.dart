@@ -6,7 +6,6 @@ import '../features/settings/data/app_settings_store.dart';
 import '../l10n/app_localizations.dart';
 import 'app_theme.dart';
 import 'navigation.dart';
-import 'startup_splash.dart';
 
 class TalkLogApp extends StatefulWidget {
   const TalkLogApp({super.key});
@@ -46,7 +45,7 @@ class _TalkLogAppState extends State<TalkLogApp> {
       locale: Locale(_settings.baseLocaleCode),
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
-      home: const StartupSplash(child: AppNavigation()),
+      home: const AppNavigation(),
     );
   }
 }
